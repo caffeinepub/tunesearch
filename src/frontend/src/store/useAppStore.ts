@@ -24,6 +24,7 @@ export interface Prefs {
   sleepTimerMinutes: number;
   repeatMode: RepeatMode;
   shuffle: boolean;
+  autoplay: boolean;
 }
 
 export interface AppCustomConfig {
@@ -263,6 +264,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
     case "SET_ADMIN": {
       if (!action.isAdmin) {
+        localStorage.removeItem("ts_user_email");
         return { ...state, isAdmin: false, userEmail: "" };
       }
       return { ...state, isAdmin: true };
@@ -271,6 +273,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const isAdmin = state.adminEmails.some(
         (e) => e.toLowerCase() === action.email.toLowerCase(),
       );
+      if (action.email) {
+        localStorage.setItem("ts_user_email", action.email);
+      } else {
+        localStorage.removeItem("ts_user_email");
+      }
       return { ...state, userEmail: action.email, isAdmin };
     }
     case "SET_APP_CONFIG": {
@@ -325,6 +332,21 @@ const DEFAULT_APP_CONFIG: AppCustomConfig = {
 const DEFAULT_ADMIN_EMAILS = [SUPER_ADMIN];
 
 export function getInitialState(): AppState {
+  const loadedEmails = loadFromStorage<string[]>(
+    "ts_admin_emails",
+    DEFAULT_ADMIN_EMAILS,
+  );
+  const adminEmails = loadedEmails.some(
+    (e) => e.toLowerCase() === SUPER_ADMIN.toLowerCase(),
+  )
+    ? loadedEmails
+    : [SUPER_ADMIN, ...loadedEmails];
+
+  const userEmail = loadFromStorage<string>("ts_user_email", "");
+  const isAdmin = userEmail
+    ? adminEmails.some((e) => e.toLowerCase() === userEmail.toLowerCase())
+    : false;
+
   return {
     currentTrack: null,
     isPlayerExpanded: false,
@@ -334,12 +356,9 @@ export function getInitialState(): AppState {
     isSettingsOpen: false,
     isQueueOpen: false,
     selectedPlaylistId: null,
-    isAdmin: false,
-    userEmail: "",
-    adminEmails: loadFromStorage<string[]>(
-      "ts_admin_emails",
-      DEFAULT_ADMIN_EMAILS,
-    ),
+    isAdmin,
+    userEmail,
+    adminEmails,
     appCustomConfig: loadFromStorage<AppCustomConfig>(
       "ts_app_config",
       DEFAULT_APP_CONFIG,
@@ -352,13 +371,15 @@ export function getInitialState(): AppState {
     playlists: loadFromStorage<Playlist[]>("ts_playlists", []),
     recentlyPlayed: loadFromStorage<Track[]>("ts_recently_played", []),
     searchHistory: loadFromStorage<string[]>("ts_search_history", []),
-    prefs: loadFromStorage<Prefs>("ts_prefs", {
+    prefs: {
       theme: "dark",
       equalizerPreset: "flat",
       sleepTimerMinutes: 0,
       repeatMode: "off",
       shuffle: false,
-    }),
+      autoplay: true,
+      ...loadFromStorage<Partial<Prefs>>("ts_prefs", {}),
+    } as Prefs,
   };
 }
 

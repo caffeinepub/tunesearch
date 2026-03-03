@@ -9,14 +9,32 @@ import RecentlyPlayedPage from "@/components/RecentlyPlayedPage";
 import SearchPage from "@/components/SearchPage";
 import SettingsDrawer from "@/components/SettingsDrawer";
 import Sidebar, { MobileTabBar } from "@/components/Sidebar";
+import SignInButton from "@/components/SignInButton";
+import SignInModal from "@/components/SignInModal";
+import TopHeader from "@/components/TopHeader";
 import { Toaster } from "@/components/ui/sonner";
-import { AppContext, appReducer, getInitialState } from "@/store/useAppStore";
-import { useEffect, useReducer } from "react";
+import { useBackendSync } from "@/hooks/useBackendSync";
+import {
+  AppContext,
+  appReducer,
+  getInitialState,
+  useAppState,
+} from "@/store/useAppStore";
+import type { AppAction, AppState } from "@/store/useAppStore";
+import { useEffect, useReducer, useState } from "react";
 
-export default function App() {
-  const [state, dispatch] = useReducer(appReducer, undefined, getInitialState);
+// Wrapper that provides keyboard shortcuts + state access
+function KeyboardShortcutsWrapper({
+  children,
+}: {
+  children: (
+    state: AppState,
+    dispatch: React.Dispatch<AppAction>,
+  ) => React.ReactNode;
+}) {
+  const { state, dispatch } = useAppState();
 
-  // Apply theme class to document
+  // Apply theme
   useEffect(() => {
     const root = document.documentElement;
     if (state.prefs.theme === "dark") {
@@ -28,7 +46,6 @@ export default function App() {
     }
   }, [state.prefs.theme]);
 
-  // Initialize dark theme on mount
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
@@ -36,10 +53,8 @@ export default function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept when in an input/textarea
       const tag = (e.target as HTMLElement).tagName.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
-
       if (!playerActions) return;
 
       switch (e.key) {
@@ -78,47 +93,87 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.currentTrack]);
+  }, [state.currentTrack, dispatch]);
 
-  const hasPlayer = !!state.currentTrack;
-  // On mobile with player: 72px player + ~56px mobile tabs = 128px. On desktop: just 72px player
-  const bottomPad = hasPlayer ? "pb-[132px] md:pb-[72px]" : "pb-[56px] md:pb-0";
+  return <>{children(state, dispatch)}</>;
+}
+
+interface InnerLayoutProps {
+  signInOpen: boolean;
+  onOpenSignIn: () => void;
+  onCloseSignIn: () => void;
+}
+
+function InnerLayout({
+  signInOpen,
+  onOpenSignIn,
+  onCloseSignIn,
+}: InnerLayoutProps) {
+  return (
+    <KeyboardShortcutsWrapper>
+      {(state, _dispatch) => {
+        const hasPlayer = !!state.currentTrack;
+        const bottomPad = hasPlayer
+          ? "pb-[132px] md:pb-[72px]"
+          : "pb-[56px] md:pb-0";
+
+        return (
+          <div className="flex h-screen overflow-hidden bg-background text-foreground">
+            <Sidebar />
+            <div
+              className={`flex flex-col flex-1 overflow-hidden ${bottomPad}`}
+            >
+              <TopHeader />
+              <main className="flex-1 overflow-hidden relative">
+                <div className="absolute inset-0 overflow-y-auto scrollbar-thin">
+                  {state.activePage === "search" && (
+                    <SearchPage onSignIn={onOpenSignIn} />
+                  )}
+                  {state.activePage === "library" && <LibraryPage />}
+                  {state.activePage === "favourites" && <FavouritesPage />}
+                  {state.activePage === "playlists" && <PlaylistsPage />}
+                  {state.activePage === "recent" && <RecentlyPlayedPage />}
+                  {state.activePage === "queue" && <QueuePage />}
+                  {state.activePage === "dashboard" && <AdminDashboard />}
+                </div>
+              </main>
+            </div>
+            <Player />
+            <QueuePanel />
+            <SettingsDrawer />
+            <MobileTabBar onOpenSignIn={onOpenSignIn} />
+            <SignInButton onOpenSignIn={onOpenSignIn} />
+            <SignInModal open={signInOpen} onClose={onCloseSignIn} />
+            <Toaster richColors position="top-right" />
+          </div>
+        );
+      }}
+    </KeyboardShortcutsWrapper>
+  );
+}
+
+// Inner app component that has access to AppContext
+function AppContent() {
+  const [signInOpen, setSignInOpen] = useState(false);
+
+  // Backend sync — runs inside AppContext
+  useBackendSync();
+
+  return (
+    <InnerLayout
+      signInOpen={signInOpen}
+      onOpenSignIn={() => setSignInOpen(true)}
+      onCloseSignIn={() => setSignInOpen(false)}
+    />
+  );
+}
+
+export default function App() {
+  const [state, dispatch] = useReducer(appReducer, undefined, getInitialState);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>
-      <div className="flex h-screen overflow-hidden bg-background text-foreground">
-        {/* Desktop Sidebar */}
-        <Sidebar />
-
-        {/* Main Content */}
-        <div className={`flex flex-col flex-1 overflow-hidden ${bottomPad}`}>
-          <main className="flex-1 overflow-hidden relative">
-            <div className="absolute inset-0 overflow-y-auto scrollbar-thin">
-              {state.activePage === "search" && <SearchPage />}
-              {state.activePage === "library" && <LibraryPage />}
-              {state.activePage === "favourites" && <FavouritesPage />}
-              {state.activePage === "playlists" && <PlaylistsPage />}
-              {state.activePage === "recent" && <RecentlyPlayedPage />}
-              {state.activePage === "queue" && <QueuePage />}
-              {state.activePage === "dashboard" && <AdminDashboard />}
-            </div>
-          </main>
-        </div>
-
-        {/* Player (fixed bottom) */}
-        <Player />
-
-        {/* Queue Slide Panel */}
-        <QueuePanel />
-
-        {/* Settings Drawer */}
-        <SettingsDrawer />
-
-        {/* Mobile Bottom Tabs — always show, player sits above on mobile */}
-        <MobileTabBar />
-
-        <Toaster richColors position="top-right" />
-      </div>
+      <AppContent />
     </AppContext.Provider>
   );
 }

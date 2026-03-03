@@ -5,9 +5,11 @@ import { useAppState } from "@/store/useAppStore";
 import type { RepeatMode, Track } from "@/store/useAppStore";
 import {
   ChevronDown,
-  ChevronUp,
+  Download,
   Heart,
   ListMusic,
+  Loader2,
+  Lock,
   Music,
   Pause,
   Play,
@@ -18,6 +20,7 @@ import {
   SkipForward,
   Volume2,
   VolumeX,
+  Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -54,6 +57,11 @@ export default function Player() {
   );
   const sleepTimerRef = useRef<number | null>(null);
   const shuffledQueueRef = useRef<number[]>([]);
+  const apiKeyRef = useRef<string>(state.apiKey);
+
+  useEffect(() => {
+    apiKeyRef.current = state.apiKey;
+  }, [state.apiKey]);
 
   const isFav = currentTrack
     ? favourites.some((f) => f.videoId === currentTrack.videoId)
@@ -105,10 +113,63 @@ export default function Player() {
       dispatch({ type: "SET_QUEUE_INDEX", index: nextIdx });
       dispatch({ type: "SET_CURRENT_TRACK", track: next });
       dispatch({ type: "ADD_RECENTLY_PLAYED", track: next });
+    } else if (prefs.autoplay && queue.length > 0) {
+      // Autoplay: fetch more similar tracks to the last played
+      const lastTrack = queue[queueIndex];
+      if (lastTrack?.channelName) {
+        const apiKey = apiKeyRef.current;
+        if (apiKey) {
+          fetch(
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(`${lastTrack.channelName} music`)}&key=${apiKey}`,
+          )
+            .then((r) => r.json())
+            .then((data) => {
+              const items = data.items || [];
+              const newTracks: Track[] = items
+                .filter((i: { id: { videoId?: string } }) => i.id?.videoId)
+                .map(
+                  (i: {
+                    id: { videoId: string };
+                    snippet: {
+                      title: string;
+                      channelTitle: string;
+                      thumbnails: {
+                        high?: { url: string };
+                        medium?: { url: string };
+                      };
+                    };
+                  }) => ({
+                    videoId: i.id.videoId,
+                    title: i.snippet.title,
+                    thumbnail:
+                      i.snippet.thumbnails.high?.url ||
+                      i.snippet.thumbnails.medium?.url ||
+                      `https://i.ytimg.com/vi/${i.id.videoId}/hqdefault.jpg`,
+                    channelName: i.snippet.channelTitle,
+                    duration: "0:00",
+                    isCreativeCommons: false,
+                  }),
+                );
+              if (newTracks.length > 0) {
+                dispatch({ type: "ADD_TO_QUEUE", track: newTracks[0] });
+                dispatch({ type: "SET_QUEUE_INDEX", index: queue.length });
+                dispatch({ type: "SET_CURRENT_TRACK", track: newTracks[0] });
+                dispatch({ type: "ADD_RECENTLY_PLAYED", track: newTracks[0] });
+                toast.info(`Autoplay: ${newTracks[0].title}`, {
+                  duration: 2000,
+                });
+              }
+            })
+            .catch(() => {
+              // silent
+            });
+        }
+      }
     }
   }, [
     prefs.repeatMode,
     prefs.shuffle,
+    prefs.autoplay,
     getNextIndex,
     queueIndex,
     queue,
@@ -264,12 +325,12 @@ export default function Player() {
                 initial={{ y: 100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 100, opacity: 0 }}
-                className="fixed left-0 right-0 z-50 h-[72px] bg-card/95 backdrop-blur-xl border-t border-border shadow-player bottom-[56px] md:bottom-0"
+                className="fixed left-0 right-0 z-50 h-[76px] bg-card/90 backdrop-blur-2xl border-t border-border shadow-player bottom-[56px] md:bottom-0"
               >
-                {/* Progress */}
-                <div className="absolute top-0 left-0 right-0 h-0.5 bg-border">
+                {/* Progress gradient bar */}
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-border/40">
                   <div
-                    className="h-full bg-primary transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-300"
                     style={{
                       width:
                         ytPlayer.duration > 0
@@ -289,7 +350,7 @@ export default function Player() {
                     }
                     data-ocid="player.expand_button"
                   >
-                    <div className="w-12 h-12 rounded shrink-0 overflow-hidden bg-muted">
+                    <div className="w-11 h-11 rounded-lg shrink-0 overflow-hidden bg-muted">
                       <img
                         src={currentTrack.thumbnail}
                         alt={currentTrack.title}
@@ -300,9 +361,18 @@ export default function Player() {
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium line-clamp-1">
-                        {currentTrack.title}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium line-clamp-1">
+                          {currentTrack.title}
+                        </p>
+                        {ytPlayer.isPlaying && (
+                          <span className="equalizer shrink-0 hidden sm:flex">
+                            <span className="bar" />
+                            <span className="bar" />
+                            <span className="bar" />
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground line-clamp-1">
                         {currentTrack.channelName}
                       </p>
@@ -405,6 +475,60 @@ export default function Player() {
                     prefs: { shuffle: !prefs.shuffle },
                   })
                 }
+                onAutoplayToggle={() =>
+                  dispatch({
+                    type: "SET_PREFS",
+                    prefs: { autoplay: !prefs.autoplay },
+                  })
+                }
+                onDownload={async (t) => {
+                  if (!t.isCreativeCommons) return;
+                  toast.loading("Preparing download…", {
+                    id: `dl-${t.videoId}`,
+                  });
+                  const payload = {
+                    url: `https://www.youtube.com/watch?v=${t.videoId}`,
+                    isAudioOnly: true,
+                    aFormat: "mp3",
+                    filenamePattern: "basic",
+                  };
+                  const tryEndpoint = async (endpoint: string) => {
+                    try {
+                      const res = await fetch(endpoint, {
+                        method: "POST",
+                        headers: {
+                          Accept: "application/json",
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(payload),
+                      });
+                      const data = await res.json();
+                      return data.url || null;
+                    } catch {
+                      return null;
+                    }
+                  };
+                  const dlUrl =
+                    (await tryEndpoint("https://co.wuk.sh/api/json")) ||
+                    (await tryEndpoint("https://cobalt.tools/api/json"));
+                  if (dlUrl) {
+                    const a = document.createElement("a");
+                    a.href = dlUrl;
+                    a.download = `${t.title}.mp3`;
+                    a.target = "_blank";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    toast.success("Download started!", {
+                      id: `dl-${t.videoId}`,
+                    });
+                  } else {
+                    toast.dismiss(`dl-${t.videoId}`);
+                    toast.error("Download service temporarily unavailable.", {
+                      duration: 5000,
+                    });
+                  }
+                }}
               />
             )}
           </AnimatePresence>
@@ -418,7 +542,7 @@ interface ExpandedPlayerProps {
   track: Track;
   ytPlayer: ReturnType<typeof useYouTubePlayer>;
   isFav: boolean;
-  prefs: { repeatMode: RepeatMode; shuffle: boolean };
+  prefs: { repeatMode: RepeatMode; shuffle: boolean; autoplay: boolean };
   sleepTimerRemaining: number | null;
   onPrev: () => void;
   onNext: () => void;
@@ -427,6 +551,8 @@ interface ExpandedPlayerProps {
   onCollapse: () => void;
   onQueueToggle: () => void;
   onShuffleToggle: () => void;
+  onAutoplayToggle: () => void;
+  onDownload: (track: Track) => Promise<void>;
 }
 
 function ExpandedPlayer({
@@ -442,8 +568,21 @@ function ExpandedPlayer({
   onCollapse,
   onQueueToggle,
   onShuffleToggle,
+  onAutoplayToggle,
+  onDownload,
 }: ExpandedPlayerProps) {
   const [imgError, setImgError] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!track.isCreativeCommons) return;
+    setDownloading(true);
+    try {
+      await onDownload(track);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <motion.div
@@ -473,20 +612,33 @@ function ExpandedPlayer({
             type="button"
             onClick={onCollapse}
             className="p-2 text-muted-foreground hover:text-foreground"
+            data-ocid="player.collapse_button"
           >
             <ChevronDown className="h-6 w-6" />
           </button>
           <span className="text-sm font-medium text-muted-foreground">
             Now Playing
           </span>
-          <button
-            type="button"
-            onClick={onQueueToggle}
-            className="p-2 text-muted-foreground hover:text-foreground"
-            data-ocid="player.queue_button"
-          >
-            <ListMusic className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Autoplay toggle */}
+            <button
+              type="button"
+              onClick={onAutoplayToggle}
+              className={`p-2 transition-colors rounded-full ${prefs.autoplay ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              data-ocid="player.autoplay_toggle"
+              title={prefs.autoplay ? "Autoplay on" : "Autoplay off"}
+            >
+              <Zap className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onQueueToggle}
+              className="p-2 text-muted-foreground hover:text-foreground"
+              data-ocid="player.queue_button"
+            >
+              <ListMusic className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Album art */}
@@ -521,14 +673,45 @@ function ExpandedPlayer({
             </h2>
             <p className="text-muted-foreground mt-1">{track.channelName}</p>
           </div>
-          <button
-            type="button"
-            onClick={onFavourite}
-            className={`p-2 transition-colors mt-1 ${isFav ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
-            data-ocid="player.favourite_button"
-          >
-            <Heart className="h-6 w-6" fill={isFav ? "currentColor" : "none"} />
-          </button>
+          <div className="flex items-center gap-1 mt-1 shrink-0">
+            {/* Download for CC tracks */}
+            {track.isCreativeCommons ? (
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={downloading}
+                className="p-2 text-muted-foreground hover:text-secondary transition-colors"
+                data-ocid="player.download_button"
+                title="Download MP3"
+              >
+                {downloading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Download className="h-5 w-5" />
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="p-2 text-muted-foreground/30 cursor-not-allowed"
+                title="Download not available for copyrighted tracks"
+              >
+                <Lock className="h-5 w-5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onFavourite}
+              className={`p-2 transition-colors ${isFav ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
+              data-ocid="player.favourite_button"
+            >
+              <Heart
+                className="h-6 w-6"
+                fill={isFav ? "currentColor" : "none"}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Sleep timer indicator */}
@@ -651,6 +834,12 @@ function ExpandedPlayer({
             data-ocid="player.volume_slider"
           />
         </div>
+
+        {/* Keyboard shortcuts hint */}
+        <p className="mt-4 text-center text-[10px] text-muted-foreground/40 tracking-wide hidden sm:block">
+          Space: play/pause · ← →: seek · N/P: next/prev · M: mute · F:
+          favourite
+        </p>
       </div>
     </motion.div>
   );

@@ -5,10 +5,18 @@ import { useAppState } from "@/store/useAppStore";
 import type { ConsoleLogEntry } from "@/store/useAppStore";
 import { Loader2, LogIn, LogOut, Shield, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 export default function AuthButton() {
-  const { identity, login, clear, isInitializing, isLoggingIn } =
-    useInternetIdentity();
+  const {
+    identity,
+    login,
+    clear,
+    isInitializing,
+    isLoggingIn,
+    isLoginError,
+    loginError,
+  } = useInternetIdentity();
   const { state, dispatch } = useAppState();
   const [emailInput, setEmailInput] = useState("");
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -17,6 +25,13 @@ export default function AuthButton() {
   const principal = identity?.getPrincipal().toString();
   const isAuthenticated =
     !!principal && !identity?.getPrincipal().isAnonymous();
+
+  // Show toast on login error
+  useEffect(() => {
+    if (isLoginError && loginError) {
+      toast.error(`Sign in failed: ${loginError.message}`);
+    }
+  }, [isLoginError, loginError]);
 
   // Log sign-in event and show email form when identity is first acquired
   useEffect(() => {
@@ -45,6 +60,23 @@ export default function AuthButton() {
     const trimmed = emailInput.trim();
     if (!trimmed) return;
     dispatch({ type: "SET_USER_EMAIL", email: trimmed });
+
+    // Check if this email grants admin access and log it
+    const willBeAdmin = state.adminEmails.some(
+      (adminEmail) => adminEmail.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (willBeAdmin) {
+      const adminEntry: ConsoleLogEntry = {
+        id: `${Date.now()}-admin`,
+        timestamp: Date.now(),
+        level: "ADMIN",
+        message: `Admin access granted to ${trimmed}`,
+        output: principal,
+      };
+      dispatch({ type: "ADD_CONSOLE_LOG", entry: adminEntry });
+      toast.success("Admin access granted!");
+    }
+
     setShowEmailForm(false);
     setEmailInput("");
   };
@@ -68,8 +100,8 @@ export default function AuthButton() {
     return (
       <Button
         size="sm"
-        variant="outline"
-        className="w-full rounded-md text-xs h-9 gap-2 border-border hover:border-primary/50 hover:text-primary"
+        variant="default"
+        className="w-full rounded-md text-xs h-9 gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-glow-sm"
         onClick={login}
         disabled={isLoggingIn}
         data-ocid="auth.sign_in_button"
