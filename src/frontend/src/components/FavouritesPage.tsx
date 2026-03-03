@@ -1,18 +1,33 @@
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { useAppState } from "@/store/useAppStore";
-import type { Track } from "@/store/useAppStore";
+import type { Playlist, Track } from "@/store/useAppStore";
 import { Heart, Music, Play, Plus } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 export default function FavouritesPage() {
   const { state, dispatch } = useAppState();
+
+  // New playlist quick-create
+  const [newPlaylistOpen, setNewPlaylistOpen] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [pendingTrack, setPendingTrack] = useState<Track | null>(null);
 
   const handlePlay = (track: Track, idx: number) => {
     dispatch({ type: "SET_QUEUE", queue: state.favourites, index: idx });
@@ -31,6 +46,32 @@ export default function FavouritesPage() {
     dispatch({ type: "ADD_TO_PLAYLIST", playlistId, track });
     const pl = state.playlists.find((p) => p.id === playlistId);
     toast.success(`Added to "${pl?.name}"`);
+  };
+
+  const handleRequestNewPlaylist = (track: Track) => {
+    setPendingTrack(track);
+    setNewPlaylistName("");
+    setNewPlaylistOpen(true);
+  };
+
+  const handleCreateAndAdd = () => {
+    if (!newPlaylistName.trim() || !pendingTrack) return;
+    const newPl: Playlist = {
+      id: `pl_${Date.now()}`,
+      name: newPlaylistName.trim(),
+      tracks: [],
+      createdAt: Date.now(),
+    };
+    dispatch({ type: "ADD_PLAYLIST", playlist: newPl });
+    dispatch({
+      type: "ADD_TO_PLAYLIST",
+      playlistId: newPl.id,
+      track: pendingTrack,
+    });
+    toast.success(`Created "${newPl.name}" and added track`);
+    setNewPlaylistOpen(false);
+    setPendingTrack(null);
+    setNewPlaylistName("");
   };
 
   return (
@@ -134,6 +175,8 @@ export default function FavouritesPage() {
                       <button
                         type="button"
                         className="p-1.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+                        data-ocid={`favourites.add_playlist_button.${idx + 1}`}
+                        aria-label="Add to playlist"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
@@ -147,6 +190,15 @@ export default function FavouritesPage() {
                       >
                         Add to queue
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleRequestNewPlaylist(track)}
+                        className="font-medium text-primary focus:text-primary"
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-2" />
+                        New playlist…
+                      </DropdownMenuItem>
+                      {state.playlists.length > 0 && <DropdownMenuSeparator />}
                       {state.playlists.map((pl) => (
                         <DropdownMenuItem
                           key={pl.id}
@@ -165,6 +217,7 @@ export default function FavouritesPage() {
                       dispatch({ type: "TOGGLE_FAVOURITE", track })
                     }
                     data-ocid={`favourites.delete_button.${idx + 1}`}
+                    aria-label="Remove from favourites"
                   >
                     <Heart className="h-3.5 w-3.5" fill="currentColor" />
                   </button>
@@ -174,6 +227,44 @@ export default function FavouritesPage() {
           </div>
         )}
       </div>
+
+      {/* New Playlist Dialog */}
+      <Dialog open={newPlaylistOpen} onOpenChange={setNewPlaylistOpen}>
+        <DialogContent
+          className="sm:max-w-sm"
+          data-ocid="favourites.new_playlist.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>New Playlist</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              placeholder="Playlist name…"
+              value={newPlaylistName}
+              onChange={(e) => setNewPlaylistName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreateAndAdd()}
+              autoFocus
+              data-ocid="favourites.new_playlist.input"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setNewPlaylistOpen(false)}
+              data-ocid="favourites.new_playlist.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateAndAdd}
+              disabled={!newPlaylistName.trim()}
+              data-ocid="favourites.new_playlist.confirm_button"
+            >
+              Create &amp; Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

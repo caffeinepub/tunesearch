@@ -20,18 +20,20 @@ import {
   ArrowLeft,
   Eye,
   EyeOff,
+  Home,
   Key,
   LayoutDashboard,
   Lock,
   Palette,
   Save,
   Shield,
+  Sliders,
   Terminal,
   Trash2,
   UserPlus,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 const KEYBOARD_SHORTCUTS = [
@@ -99,13 +101,23 @@ export default function AdminDashboard() {
       {/* Tabs */}
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="appearance" className="h-full flex flex-col">
-          <div className="border-b border-border px-6 shrink-0">
-            <TabsList className="h-10 bg-transparent gap-1 p-0">
+          <div className="border-b border-border px-6 shrink-0 overflow-x-auto">
+            <TabsList className="h-10 bg-transparent gap-1 p-0 w-max">
               {[
                 {
                   value: "appearance",
                   icon: <Palette className="h-3.5 w-3.5" />,
                   label: "Appearance",
+                },
+                {
+                  value: "theme",
+                  icon: <Sliders className="h-3.5 w-3.5" />,
+                  label: "Theme",
+                },
+                {
+                  value: "homepage",
+                  icon: <Home className="h-3.5 w-3.5" />,
+                  label: "Homepage",
                 },
                 {
                   value: "users",
@@ -144,6 +156,12 @@ export default function AdminDashboard() {
           <div className="flex-1 overflow-y-auto">
             <TabsContent value="appearance" className="mt-0 h-full">
               <AppearanceTab />
+            </TabsContent>
+            <TabsContent value="theme" className="mt-0 h-full">
+              <ThemeTab />
+            </TabsContent>
+            <TabsContent value="homepage" className="mt-0 h-full">
+              <HomepageTab />
             </TabsContent>
             <TabsContent value="users" className="mt-0 h-full">
               <UsersTab principal={principal} />
@@ -209,7 +227,7 @@ function AppearanceTab() {
             onChange={(e) =>
               setForm((f) => ({ ...f, tagline: e.target.value }))
             }
-            placeholder="Search and play music from YouTube"
+            placeholder="Search and play music"
             data-ocid="dashboard.tagline_input"
           />
         </FormField>
@@ -277,6 +295,294 @@ function AppearanceTab() {
       >
         <Save className="h-4 w-4" />
         Save Changes
+      </Button>
+    </div>
+  );
+}
+
+// --- Theme Tab ---
+const ACCENT_PRESETS = [
+  { label: "Purple", value: "oklch(0.65 0.28 290)", color: "#a855f7" },
+  { label: "Blue", value: "oklch(0.60 0.22 240)", color: "#3b82f6" },
+  { label: "Green", value: "oklch(0.65 0.20 150)", color: "#22c55e" },
+  { label: "Orange", value: "oklch(0.70 0.22 55)", color: "#f97316" },
+  { label: "Pink", value: "oklch(0.68 0.26 350)", color: "#ec4899" },
+  { label: "Red", value: "oklch(0.60 0.26 25)", color: "#ef4444" },
+];
+
+const FONT_OPTIONS = [
+  { label: "Outfit (default)", value: "Outfit" },
+  { label: "Figtree", value: "Figtree" },
+  { label: "General Sans", value: "General Sans" },
+];
+
+function ThemeTab() {
+  const { state, dispatch } = useAppState();
+  const cfg = state.appCustomConfig;
+
+  const [accentColor, setAccentColor] = useState(cfg.accentColor || "");
+  const [fontFamily, setFontFamily] = useState(cfg.fontFamily || "Outfit");
+  const [customHex, setCustomHex] = useState("");
+
+  // Live preview: apply while editing
+  useEffect(() => {
+    if (accentColor) {
+      document.documentElement.style.setProperty("--primary", accentColor);
+    }
+  }, [accentColor]);
+
+  useEffect(() => {
+    if (fontFamily) {
+      document.documentElement.style.setProperty("--font-sans", fontFamily);
+      document.documentElement.style.setProperty(
+        "--font-body",
+        `"${fontFamily}", sans-serif`,
+      );
+    }
+  }, [fontFamily]);
+
+  const handleSave = () => {
+    dispatch({
+      type: "SET_APP_CONFIG",
+      config: { accentColor, fontFamily },
+    });
+    toast.success("Theme settings saved");
+  };
+
+  return (
+    <div className="p-6 max-w-2xl space-y-8">
+      <SectionHeader
+        title="Theme Settings"
+        description="Customise accent colour and typography"
+      />
+
+      {/* Accent Color */}
+      <div className="space-y-4">
+        <Label className="text-sm font-medium text-foreground">
+          Accent Color
+        </Label>
+        <div className="flex flex-wrap gap-3">
+          {ACCENT_PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              title={preset.label}
+              onClick={() => setAccentColor(preset.value)}
+              className={`w-9 h-9 rounded-full border-2 transition-all ${
+                accentColor === preset.value
+                  ? "border-foreground scale-110"
+                  : "border-transparent hover:scale-105"
+              }`}
+              style={{ backgroundColor: preset.color }}
+            />
+          ))}
+        </div>
+        {/* Custom hex */}
+        <div className="flex gap-2 items-center">
+          <Input
+            placeholder="#hex or oklch(…)"
+            value={customHex}
+            onChange={(e) => setCustomHex(e.target.value)}
+            className="max-w-xs"
+            data-ocid="dashboard.theme.accent_input"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (customHex.trim()) setAccentColor(customHex.trim());
+            }}
+          >
+            Apply
+          </Button>
+          {accentColor && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setAccentColor("");
+                document.documentElement.style.removeProperty("--primary");
+              }}
+              className="text-muted-foreground"
+            >
+              Reset
+            </Button>
+          )}
+        </div>
+        {accentColor && (
+          <p className="text-xs text-muted-foreground">
+            Current:{" "}
+            <span className="font-mono text-foreground">{accentColor}</span>
+          </p>
+        )}
+      </div>
+
+      {/* Font Family */}
+      <div className="space-y-3">
+        <Label className="text-sm font-medium text-foreground">Font</Label>
+        <div className="flex flex-wrap gap-2">
+          {FONT_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setFontFamily(opt.value)}
+              className={`px-4 py-2 rounded-lg border text-sm transition-all ${
+                fontFamily === opt.value
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card hover:border-primary/50 text-muted-foreground hover:text-foreground"
+              }`}
+              data-ocid="dashboard.theme.font_button"
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Button
+        onClick={handleSave}
+        className="gap-2"
+        data-ocid="dashboard.theme_save_button"
+      >
+        <Save className="h-4 w-4" />
+        Save Theme
+      </Button>
+    </div>
+  );
+}
+
+// --- Homepage Tab ---
+function HomepageTab() {
+  const { state, dispatch } = useAppState();
+  const cfg = state.appCustomConfig;
+
+  const [form, setForm] = useState({
+    showTrending: cfg.showTrending !== false,
+    showPopular: cfg.showPopular !== false,
+    trendingLabel: cfg.trendingLabel || "Trending Now",
+    popularLabel: cfg.popularLabel || "Popular Picks",
+    maxTrending: cfg.maxTrending || 10,
+    maxPopular: cfg.maxPopular || 6,
+  });
+
+  const handleSave = () => {
+    dispatch({ type: "SET_APP_CONFIG", config: form });
+    toast.success("Homepage settings saved");
+  };
+
+  return (
+    <div className="p-6 max-w-2xl space-y-8">
+      <SectionHeader
+        title="Homepage Settings"
+        description="Control what appears on the home / discovery screen"
+      />
+
+      {/* Section toggles */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between p-4 rounded-lg bg-card border border-border">
+          <div className="space-y-0.5">
+            <Label className="text-sm font-medium">Show Trending section</Label>
+            <p className="text-xs text-muted-foreground">
+              Horizontal scroll row of trending tracks
+            </p>
+          </div>
+          <Switch
+            checked={form.showTrending}
+            onCheckedChange={(v) => setForm((f) => ({ ...f, showTrending: v }))}
+            data-ocid="dashboard.homepage.trending_toggle"
+          />
+        </div>
+
+        <div className="flex items-center justify-between p-4 rounded-lg bg-card border border-border">
+          <div className="space-y-0.5">
+            <Label className="text-sm font-medium">
+              Show Popular Picks section
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Vertical track list of popular music
+            </p>
+          </div>
+          <Switch
+            checked={form.showPopular}
+            onCheckedChange={(v) => setForm((f) => ({ ...f, showPopular: v }))}
+            data-ocid="dashboard.homepage.popular_toggle"
+          />
+        </div>
+      </div>
+
+      {/* Labels */}
+      <div className="space-y-4">
+        <FormField label="Trending section label">
+          <Input
+            value={form.trendingLabel}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, trendingLabel: e.target.value }))
+            }
+            placeholder="Trending Now"
+            data-ocid="dashboard.homepage.trending_label_input"
+          />
+        </FormField>
+
+        <FormField label="Popular section label">
+          <Input
+            value={form.popularLabel}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, popularLabel: e.target.value }))
+            }
+            placeholder="Popular Picks"
+            data-ocid="dashboard.homepage.popular_label_input"
+          />
+        </FormField>
+      </div>
+
+      {/* Max items */}
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Max trending items" description="1–20">
+          <Input
+            type="number"
+            min={1}
+            max={20}
+            value={form.maxTrending}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                maxTrending: Math.min(
+                  20,
+                  Math.max(1, Number.parseInt(e.target.value) || 1),
+                ),
+              }))
+            }
+            data-ocid="dashboard.homepage.max_trending_input"
+          />
+        </FormField>
+
+        <FormField label="Max popular items" description="1–20">
+          <Input
+            type="number"
+            min={1}
+            max={20}
+            value={form.maxPopular}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                maxPopular: Math.min(
+                  20,
+                  Math.max(1, Number.parseInt(e.target.value) || 1),
+                ),
+              }))
+            }
+            data-ocid="dashboard.homepage.max_popular_input"
+          />
+        </FormField>
+      </div>
+
+      <Button
+        onClick={handleSave}
+        className="gap-2"
+        data-ocid="dashboard.homepage_save_button"
+      >
+        <Save className="h-4 w-4" />
+        Save Homepage Settings
       </Button>
     </div>
   );

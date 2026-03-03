@@ -72,11 +72,13 @@ export default {
           border: "oklch(var(--sidebar-border))",
           ring: "oklch(var(--sidebar-ring))",
         },
+        // Warm Studio palette aliases
         tune: {
-          purple: "oklch(0.65 0.28 290)",
-          teal: "oklch(0.72 0.18 190)",
-          "purple-dim": "oklch(0.45 0.2 290)",
-          "teal-dim": "oklch(0.52 0.12 190)",
+          amber: "oklch(0.75 0.18 65)",
+          rose: "oklch(0.72 0.12 15)",
+          "amber-dim": "oklch(0.55 0.13 65)",
+          "rose-dim": "oklch(0.52 0.09 15)",
+          warm: "oklch(0.13 0.015 50)",
         },
       },
       borderRadius: {
@@ -88,11 +90,12 @@ export default {
       },
       boxShadow: {
         xs: "0 1px 2px 0 rgba(0,0,0,0.05)",
-        "glow-sm": "0 0 12px oklch(0.65 0.28 290 / 0.3)",
-        "glow-md": "0 0 24px oklch(0.65 0.28 290 / 0.4), 0 0 48px oklch(0.65 0.28 290 / 0.15)",
-        "glow-teal": "0 0 16px oklch(0.72 0.18 190 / 0.3)",
-        "player": "0 -4px 32px oklch(0.12 0.02 260 / 0.8)",
-        "card-hover": "0 8px 32px oklch(0.12 0.02 260 / 0.5)",
+        "glow-sm": "0 0 12px oklch(0.75 0.18 65 / 0.28)",
+        "glow-md": "0 0 24px oklch(0.75 0.18 65 / 0.35), 0 0 48px oklch(0.75 0.18 65 / 0.12)",
+        "glow-rose": "0 0 16px oklch(0.72 0.12 15 / 0.3)",
+        "player": "0 -4px 32px oklch(0.13 0.015 50 / 0.85)",
+        "card-hover": "0 8px 32px oklch(0.13 0.015 50 / 0.5)",
+        "warm-inset": "inset 0 1px 0 oklch(0.75 0.18 65 / 0.08)",
       },
       keyframes: {
         "accordion-down": {
@@ -108,8 +111,8 @@ export default {
           to: { transform: "rotate(360deg)" },
         },
         "pulse-glow": {
-          "0%, 100%": { boxShadow: "0 0 12px oklch(0.65 0.28 290 / 0.3)" },
-          "50%": { boxShadow: "0 0 24px oklch(0.65 0.28 290 / 0.6)" },
+          "0%, 100%": { boxShadow: "0 0 12px oklch(0.75 0.18 65 / 0.3)" },
+          "50%": { boxShadow: "0 0 28px oklch(0.75 0.18 65 / 0.6)" },
         },
       },
       animation: {

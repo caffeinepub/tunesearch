@@ -21,6 +21,7 @@ import {
   useAppState,
 } from "@/store/useAppStore";
 import type { AppAction, AppState } from "@/store/useAppStore";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useReducer, useState } from "react";
 
 // Wrapper that provides keyboard shortcuts + state access
@@ -49,6 +50,26 @@ function KeyboardShortcutsWrapper({
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
+
+  // Apply custom theme config (accent color + font)
+  useEffect(() => {
+    if (state.appCustomConfig.accentColor) {
+      document.documentElement.style.setProperty(
+        "--primary",
+        state.appCustomConfig.accentColor,
+      );
+    }
+    if (state.appCustomConfig.fontFamily) {
+      document.documentElement.style.setProperty(
+        "--font-sans",
+        state.appCustomConfig.fontFamily,
+      );
+      document.documentElement.style.setProperty(
+        "--font-body",
+        `"${state.appCustomConfig.fontFamily}", sans-serif`,
+      );
+    }
+  }, [state.appCustomConfig.accentColor, state.appCustomConfig.fontFamily]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -125,17 +146,26 @@ function InnerLayout({
             >
               <TopHeader />
               <main className="flex-1 overflow-hidden relative">
-                <div className="absolute inset-0 overflow-y-auto scrollbar-thin">
-                  {state.activePage === "search" && (
-                    <SearchPage onSignIn={onOpenSignIn} />
-                  )}
-                  {state.activePage === "library" && <LibraryPage />}
-                  {state.activePage === "favourites" && <FavouritesPage />}
-                  {state.activePage === "playlists" && <PlaylistsPage />}
-                  {state.activePage === "recent" && <RecentlyPlayedPage />}
-                  {state.activePage === "queue" && <QueuePage />}
-                  {state.activePage === "dashboard" && <AdminDashboard />}
-                </div>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={state.activePage}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                    className="absolute inset-0 overflow-y-auto scrollbar-thin"
+                  >
+                    {state.activePage === "search" && (
+                      <SearchPage onSignIn={onOpenSignIn} />
+                    )}
+                    {state.activePage === "library" && <LibraryPage />}
+                    {state.activePage === "favourites" && <FavouritesPage />}
+                    {state.activePage === "playlists" && <PlaylistsPage />}
+                    {state.activePage === "recent" && <RecentlyPlayedPage />}
+                    {state.activePage === "queue" && <QueuePage />}
+                    {state.activePage === "dashboard" && <AdminDashboard />}
+                  </motion.div>
+                </AnimatePresence>
               </main>
             </div>
             <Player />

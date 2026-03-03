@@ -37,7 +37,7 @@ export default function SignInButton({ onOpenSignIn }: SignInButtonProps) {
 
   if (isInitializing) {
     return (
-      <div className="fixed top-4 right-4 z-[60] w-9 h-9 rounded-full bg-muted animate-pulse" />
+      <div className="fixed top-4 left-4 z-[60] w-9 h-9 rounded-full bg-muted animate-pulse" />
     );
   }
 
@@ -45,7 +45,7 @@ export default function SignInButton({ onOpenSignIn }: SignInButtonProps) {
     return (
       <button
         type="button"
-        className="fixed top-4 right-4 z-[60] flex items-center gap-2 h-9 px-4 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-glow-sm hover:bg-primary/90 transition-all duration-200 hover:scale-105 active:scale-95"
+        className="fixed top-4 left-4 z-[60] flex items-center gap-2 h-9 px-4 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-glow-sm hover:bg-primary/90 transition-all duration-200 hover:scale-105 active:scale-95"
         onClick={onOpenSignIn}
         data-ocid="auth.sign_in_button"
         aria-label="Sign in"
@@ -62,7 +62,7 @@ export default function SignInButton({ onOpenSignIn }: SignInButtonProps) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="fixed top-4 right-4 z-[60] w-9 h-9 rounded-full bg-primary/20 border-2 border-primary/50 hover:border-primary transition-colors flex items-center justify-center text-sm font-bold text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-glow-sm"
+          className="fixed top-4 left-4 z-[60] w-9 h-9 rounded-full bg-primary/20 border-2 border-primary/50 hover:border-primary transition-colors flex items-center justify-center text-sm font-bold text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-glow-sm"
           data-ocid="auth.avatar_button"
           aria-label={state.userEmail || "Account"}
           title={state.userEmail || "Account"}
@@ -75,7 +75,7 @@ export default function SignInButton({ onOpenSignIn }: SignInButtonProps) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="end"
+        align="start"
         className="w-56 mt-1"
         data-ocid="auth.dropdown_menu"
       >

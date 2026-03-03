@@ -101,6 +101,8 @@ export function useYouTubePlayer({
   // Update media session metadata when track changes.
   // Providing multiple artwork sizes (including 512x512) ensures Android and
   // iOS show the notification with full media controls (Prev / Next buttons).
+  // Note: omitting the `type` field avoids MIME-type validation failures on
+  // some Android browsers which can silently prevent artwork from appearing.
   useEffect(() => {
     if (!("mediaSession" in navigator) || !currentTrack) return;
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -108,11 +110,11 @@ export function useYouTubePlayer({
       artist: currentTrack.channelName,
       album: "TuneSearch",
       artwork: [
-        { src: currentTrack.thumbnail, sizes: "96x96", type: "image/jpeg" },
-        { src: currentTrack.thumbnail, sizes: "128x128", type: "image/jpeg" },
-        { src: currentTrack.thumbnail, sizes: "192x192", type: "image/jpeg" },
-        { src: currentTrack.thumbnail, sizes: "256x256", type: "image/jpeg" },
-        { src: currentTrack.thumbnail, sizes: "512x512", type: "image/jpeg" },
+        { src: currentTrack.thumbnail, sizes: "96x96" },
+        { src: currentTrack.thumbnail, sizes: "128x128" },
+        { src: currentTrack.thumbnail, sizes: "192x192" },
+        { src: currentTrack.thumbnail, sizes: "256x256" },
+        { src: currentTrack.thumbnail, sizes: "512x512" },
       ],
     });
   }, [currentTrack]);
@@ -157,8 +159,46 @@ export function useYouTubePlayer({
     setCurrentTime(newTime);
   }, []);
 
+  // Stable Media Session handler registration — defined early so initPlayer
+  // can reference it via ref without a circular dependency.
+  // Both previoustrack AND nexttrack must be registered for Android/iOS to
+  // show Prev/Next buttons in the notification shade.
+  const registerMediaSessionHandlers = useCallback(() => {
+    if (!("mediaSession" in navigator)) return;
+    try {
+      navigator.mediaSession.setActionHandler("play", () => {
+        playerRef.current?.playVideo();
+      });
+      navigator.mediaSession.setActionHandler("pause", () => {
+        playerRef.current?.pauseVideo();
+      });
+      navigator.mediaSession.setActionHandler("stop", () => {
+        playerRef.current?.pauseVideo();
+      });
+      navigator.mediaSession.setActionHandler("previoustrack", () => {
+        onPrevRef.current?.();
+      });
+      navigator.mediaSession.setActionHandler("nexttrack", () => {
+        onNextRef.current?.();
+      });
+      navigator.mediaSession.setActionHandler("seekbackward", (details) => {
+        seekBy(-(details.seekOffset ?? 10));
+      });
+      navigator.mediaSession.setActionHandler("seekforward", (details) => {
+        seekBy(details.seekOffset ?? 10);
+      });
+    } catch {
+      // Some browsers may not support all action handlers
+    }
+  }, [seekBy]);
+
   // Declared here (before initPlayer) so the onStateChange closure can reference it.
   const wasPlayingRef = useRef(false);
+  // Ref to registerMediaSessionHandlers so initPlayer's onStateChange closure
+  // can call the latest version without a circular dependency.
+  const registerMediaSessionHandlersRef = useRef<() => void>(() => {});
+  // Keep the ref current whenever the callback changes
+  registerMediaSessionHandlersRef.current = registerMediaSessionHandlers;
 
   const initPlayer = useCallback(() => {
     if (!window.YT || !window.YT.Player) return;
@@ -202,68 +242,37 @@ export function useYouTubePlayer({
             wasPlayingRef.current = false;
             if ("mediaSession" in navigator) {
               navigator.mediaSession.playbackState = "playing";
+              // Re-set metadata on PLAYING in case it was cleared by a track change
               if (currentTrackRef.current) {
                 navigator.mediaSession.metadata = new MediaMetadata({
                   title: currentTrackRef.current.title,
                   artist: currentTrackRef.current.channelName,
                   album: "TuneSearch",
                   artwork: [
-                    {
-                      src: currentTrackRef.current.thumbnail,
-                      sizes: "96x96",
-                      type: "image/jpeg",
-                    },
+                    { src: currentTrackRef.current.thumbnail, sizes: "96x96" },
                     {
                       src: currentTrackRef.current.thumbnail,
                       sizes: "128x128",
-                      type: "image/jpeg",
                     },
                     {
                       src: currentTrackRef.current.thumbnail,
                       sizes: "192x192",
-                      type: "image/jpeg",
                     },
                     {
                       src: currentTrackRef.current.thumbnail,
                       sizes: "256x256",
-                      type: "image/jpeg",
                     },
                     {
                       src: currentTrackRef.current.thumbnail,
                       sizes: "512x512",
-                      type: "image/jpeg",
                     },
                   ],
                 });
               }
-              // Re-register action handlers every time playback starts.
-              // Some mobile browsers clear them after a pause/seek/track change.
-              // Both previoustrack AND nexttrack must be registered for the OS to
-              // show the prev/next buttons in the notification bar / lock screen.
-              try {
-                navigator.mediaSession.setActionHandler("previoustrack", () =>
-                  onPrevRef.current?.(),
-                );
-                navigator.mediaSession.setActionHandler("nexttrack", () =>
-                  onNextRef.current?.(),
-                );
-                navigator.mediaSession.setActionHandler("play", () =>
-                  playerRef.current?.playVideo(),
-                );
-                navigator.mediaSession.setActionHandler("pause", () =>
-                  playerRef.current?.pauseVideo(),
-                );
-                navigator.mediaSession.setActionHandler(
-                  "seekbackward",
-                  (details) => seekBy(-(details.seekOffset ?? 10)),
-                );
-                navigator.mediaSession.setActionHandler(
-                  "seekforward",
-                  (details) => seekBy(details.seekOffset ?? 10),
-                );
-              } catch {
-                // ignore — older browsers may not support all handlers
-              }
+              // Re-register all 7 action handlers via the stable ref.
+              // Both previoustrack AND nexttrack must be registered for Android/iOS
+              // to show Prev/Next buttons in the notification bar / lock screen.
+              registerMediaSessionHandlersRef.current();
             }
           } else if (state === window.YT.PlayerState.PAUSED) {
             // If YouTube forced a pause because the page is hidden, fight it back.
@@ -297,7 +306,7 @@ export function useYouTubePlayer({
         },
       },
     });
-  }, [startTimer, stopTimer, seekBy]);
+  }, [startTimer, stopTimer]);
 
   // Register Media Session action handlers as soon as the API is available.
   // We use refs for onPrev/onNext so the handlers always call the latest
@@ -307,36 +316,8 @@ export function useYouTubePlayer({
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
 
-    const registerHandlers = () => {
-      try {
-        navigator.mediaSession.setActionHandler("play", () => {
-          playerRef.current?.playVideo();
-        });
-        navigator.mediaSession.setActionHandler("pause", () => {
-          playerRef.current?.pauseVideo();
-        });
-        navigator.mediaSession.setActionHandler("stop", () => {
-          playerRef.current?.pauseVideo();
-        });
-        navigator.mediaSession.setActionHandler("previoustrack", () => {
-          onPrevRef.current?.();
-        });
-        navigator.mediaSession.setActionHandler("nexttrack", () => {
-          onNextRef.current?.();
-        });
-        navigator.mediaSession.setActionHandler("seekbackward", (details) => {
-          seekBy(-(details.seekOffset ?? 10));
-        });
-        navigator.mediaSession.setActionHandler("seekforward", (details) => {
-          seekBy(details.seekOffset ?? 10);
-        });
-      } catch {
-        // Some browsers may not support all action handlers
-      }
-    };
-
-    // Register immediately and also once player is ready
-    registerHandlers();
+    // Register immediately on mount
+    registerMediaSessionHandlers();
 
     return () => {
       if (!("mediaSession" in navigator)) return;
@@ -352,8 +333,7 @@ export function useYouTubePlayer({
         // ignore
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seekBy]); // seekBy is stable; refs are always current
+  }, [registerMediaSessionHandlers]);
 
   // Helper: retry playVideo up to `maxAttempts` times with `intervalMs` spacing.
   // Stops early if the player confirms PLAYING state. Does NOT reset wasPlayingRef
@@ -502,10 +482,31 @@ export function useYouTubePlayer({
     };
   }, [initPlayer, stopTimer]);
 
-  const loadAndPlay = useCallback((videoId: string) => {
-    if (!playerRef.current) return;
-    playerRef.current.loadVideoById(videoId);
-  }, []);
+  const loadAndPlay = useCallback(
+    (videoId: string) => {
+      if (!playerRef.current) return;
+      playerRef.current.loadVideoById(videoId);
+      // Re-register Media Session handlers immediately after loading a new video
+      // so that the notification bar Prev/Next buttons are always present.
+      registerMediaSessionHandlers();
+      // Update metadata for the new track immediately (before PLAYING fires)
+      if ("mediaSession" in navigator && currentTrackRef.current) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: currentTrackRef.current.title,
+          artist: currentTrackRef.current.channelName,
+          album: "TuneSearch",
+          artwork: [
+            { src: currentTrackRef.current.thumbnail, sizes: "96x96" },
+            { src: currentTrackRef.current.thumbnail, sizes: "128x128" },
+            { src: currentTrackRef.current.thumbnail, sizes: "192x192" },
+            { src: currentTrackRef.current.thumbnail, sizes: "256x256" },
+            { src: currentTrackRef.current.thumbnail, sizes: "512x512" },
+          ],
+        });
+      }
+    },
+    [registerMediaSessionHandlers],
+  );
 
   const play = useCallback(() => {
     playerRef.current?.playVideo();

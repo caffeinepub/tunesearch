@@ -31,7 +31,7 @@ export default function TopHeader() {
       </div>
 
       {/* Right: Settings */}
-      <div className="flex items-center gap-2 pr-16">
+      <div className="flex items-center gap-3">
         <button
           type="button"
           className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"

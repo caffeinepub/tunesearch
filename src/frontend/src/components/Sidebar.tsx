@@ -13,6 +13,7 @@ import {
   Settings,
   User,
 } from "lucide-react";
+import { motion } from "motion/react";
 
 type Page = AppState["activePage"];
 
@@ -94,7 +95,7 @@ export default function Sidebar() {
             <li key={page}>
               <button
                 type="button"
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 relative ${
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 active:scale-[0.97] relative ${
                   state.activePage === page
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground/80 hover:text-foreground hover:bg-white/5"
@@ -211,24 +212,43 @@ export function MobileTabBar({
 
   const mobileItems = navItems.slice(0, 4);
 
+  // Build tab items, cap at 5 total to prevent overflow on small phones
+  const allTabs = [
+    ...mobileItems,
+    ...(state.isAdmin
+      ? [
+          {
+            page: "dashboard" as Page,
+            icon: LayoutDashboard,
+            label: "Panel",
+            ocid: "sidebar.dashboard_link",
+          },
+        ]
+      : []),
+  ];
+  // Always include account + settings as the last two, within a 5-item cap
+  const maxContent = 3; // slots for nav items
+  const contentTabs = allTabs.slice(0, maxContent);
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-xl border-t border-border">
       <div
-        className="flex items-center justify-around py-1.5"
+        className="flex items-center overflow-x-auto scroll-snap-x-mandatory scrollbar-none"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        {mobileItems.map(({ page, icon: Icon, label, ocid }) => {
+        {contentTabs.map(({ page, icon: Icon, label, ocid }) => {
           const isActive = state.activePage === page;
           return (
-            <button
+            <motion.button
               type="button"
               key={page}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors min-w-[52px] ${
+              className={`flex flex-col items-center gap-0.5 flex-1 min-w-[52px] px-2 py-1.5 rounded-lg transition-colors duration-200 scroll-snap-align-center ${
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               }`}
               onClick={() => dispatch({ type: "SET_ACTIVE_PAGE", page })}
+              whileTap={{ scale: 0.85 }}
               data-ocid={ocid}
             >
               <Icon className="h-5 w-5" />
@@ -236,38 +256,19 @@ export function MobileTabBar({
               {isActive && (
                 <span className="w-1 h-1 rounded-full bg-primary mt-0.5" />
               )}
-            </button>
+            </motion.button>
           );
         })}
-        {state.isAdmin && (
-          <button
-            type="button"
-            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors min-w-[52px] ${
-              state.activePage === "dashboard"
-                ? "text-amber-400"
-                : "text-muted-foreground hover:text-amber-400"
-            }`}
-            onClick={() =>
-              dispatch({ type: "SET_ACTIVE_PAGE", page: "dashboard" })
-            }
-            data-ocid="sidebar.dashboard_link"
-          >
-            <LayoutDashboard className="h-5 w-5" />
-            <span className="text-[10px]">Dashboard</span>
-            {state.activePage === "dashboard" && (
-              <span className="w-1 h-1 rounded-full bg-amber-400 mt-0.5" />
-            )}
-          </button>
-        )}
         {/* Account / Sign In button */}
-        <button
+        <motion.button
           type="button"
-          className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors min-w-[52px] ${
+          className={`flex flex-col items-center gap-0.5 flex-1 min-w-[52px] px-2 py-1.5 rounded-lg transition-colors duration-200 ${
             isAuthenticated
               ? "text-primary"
               : "text-muted-foreground hover:text-primary"
           }`}
           onClick={onOpenSignIn}
+          whileTap={{ scale: 0.85 }}
           data-ocid="sidebar.account_button"
         >
           <User className="h-5 w-5" />
@@ -281,16 +282,17 @@ export function MobileTabBar({
           {isAuthenticated && (
             <span className="w-1 h-1 rounded-full bg-primary mt-0.5" />
           )}
-        </button>
-        <button
+        </motion.button>
+        <motion.button
           type="button"
-          className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors min-w-[52px]"
+          className="flex flex-col items-center gap-0.5 flex-1 min-w-[52px] px-2 py-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors duration-200"
           onClick={() => dispatch({ type: "SET_SETTINGS_OPEN", open: true })}
+          whileTap={{ scale: 0.85 }}
           data-ocid="sidebar.settings_button"
         >
           <Settings className="h-5 w-5" />
           <span className="text-[10px]">More</span>
-        </button>
+        </motion.button>
       </div>
     </nav>
   );

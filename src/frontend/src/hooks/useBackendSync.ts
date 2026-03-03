@@ -2,6 +2,7 @@
  * useBackendSync — syncs favourites and playlists with the backend canister.
  *
  * On sign-in: loads favourites + playlists from backend and merges into local state.
+ * The backend returns a single JSON string (e.g. "[{...}, {...}]"), not an array.
  * Uses a ref guard so it only runs once per identity session.
  */
 
@@ -42,47 +43,89 @@ export function useBackendSync() {
 
     const syncFromBackend = async () => {
       try {
-        // Parallel fetch
+        // Parallel fetch — backend methods return a single JSON string
         const [favsResult, playlistsResult] = await Promise.all([
           (
-            actor as unknown as { getFavourites?: () => Promise<string[]> }
-          ).getFavourites?.() ?? Promise.resolve([]),
+            actor as unknown as { getFavourites?: () => Promise<string> }
+          ).getFavourites?.() ?? Promise.resolve(""),
           (
-            actor as unknown as { getPlaylists?: () => Promise<string[]> }
-          ).getPlaylists?.() ?? Promise.resolve([]),
+            actor as unknown as { getPlaylists?: () => Promise<string> }
+          ).getPlaylists?.() ?? Promise.resolve(""),
         ]);
 
-        // Parse favourites
-        if (Array.isArray(favsResult) && favsResult.length > 0) {
+        // Parse favourites — favsResult is a JSON array string like "[{...}]"
+        if (typeof favsResult === "string" && favsResult.trim().length > 2) {
+          try {
+            const remoteItems: Track[] = JSON.parse(favsResult);
+            if (Array.isArray(remoteItems) && remoteItems.length > 0) {
+              const remoteIds = new Set(remoteItems.map((t) => t.videoId));
+              const localOnly = favouritesRef.current.filter(
+                (t) => !remoteIds.has(t.videoId),
+              );
+              const merged = [...remoteItems, ...localOnly];
+              dispatch({ type: "SET_FAVOURITES", favourites: merged });
+            }
+          } catch {
+            // ignore malformed JSON
+          }
+        } else if (
+          Array.isArray(favsResult) &&
+          (favsResult as unknown[]).length > 0
+        ) {
+          // Fallback: backend might still return an array in some versions
           const remoteItems: Track[] = [];
-          for (const item of favsResult) {
+          for (const item of favsResult as unknown[]) {
             try {
-              const parsed = typeof item === "string" ? JSON.parse(item) : item;
-              if (parsed?.videoId) remoteItems.push(parsed as Track);
+              const parsed =
+                typeof item === "string" ? JSON.parse(item as string) : item;
+              if (parsed && typeof parsed === "object" && "videoId" in parsed) {
+                remoteItems.push(parsed as Track);
+              }
             } catch {
               // ignore malformed entries
             }
           }
           if (remoteItems.length > 0) {
-            const localIds = new Set(remoteItems.map((t) => t.videoId));
+            const remoteIds = new Set(remoteItems.map((t) => t.videoId));
             const localOnly = favouritesRef.current.filter(
-              (t) => !localIds.has(t.videoId),
+              (t) => !remoteIds.has(t.videoId),
             );
             const merged = [...remoteItems, ...localOnly];
-            localStorage.setItem("ts_favourites", JSON.stringify(merged));
-            // Trigger a lightweight re-render so favourites re-load from localStorage
-            dispatch({ type: "SET_PREFS", prefs: {} });
+            dispatch({ type: "SET_FAVOURITES", favourites: merged });
           }
         }
 
-        // Parse playlists
-        if (Array.isArray(playlistsResult) && playlistsResult.length > 0) {
+        // Parse playlists — playlistsResult is a JSON array string like "[{...}]"
+        if (
+          typeof playlistsResult === "string" &&
+          playlistsResult.trim().length > 2
+        ) {
+          try {
+            const remotePlaylists: Playlist[] = JSON.parse(playlistsResult);
+            if (Array.isArray(remotePlaylists) && remotePlaylists.length > 0) {
+              dispatch({ type: "SET_PLAYLISTS", playlists: remotePlaylists });
+            }
+          } catch {
+            // ignore malformed JSON
+          }
+        } else if (
+          Array.isArray(playlistsResult) &&
+          (playlistsResult as unknown[]).length > 0
+        ) {
+          // Fallback: backend might still return an array in some versions
           const remotePlaylists: Playlist[] = [];
-          for (const item of playlistsResult) {
+          for (const item of playlistsResult as unknown[]) {
             try {
-              const parsed = typeof item === "string" ? JSON.parse(item) : item;
-              if (parsed?.id && parsed?.name)
+              const parsed =
+                typeof item === "string" ? JSON.parse(item as string) : item;
+              if (
+                parsed &&
+                typeof parsed === "object" &&
+                "id" in parsed &&
+                "name" in parsed
+              ) {
                 remotePlaylists.push(parsed as Playlist);
+              }
             } catch {
               // ignore malformed entries
             }

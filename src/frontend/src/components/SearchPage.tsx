@@ -1,17 +1,26 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useAppState } from "@/store/useAppStore";
-import type { Track } from "@/store/useAppStore";
+import type { Playlist, Track } from "@/store/useAppStore";
 import {
   ChevronDown,
   ChevronRight,
+  Clock,
   Download,
   Heart,
   Loader2,
@@ -104,7 +113,7 @@ interface SearchPageProps {
   onSignIn?: () => void;
 }
 
-export default function SearchPage({ onSignIn }: SearchPageProps) {
+export default function SearchPage({ onSignIn: _onSignIn }: SearchPageProps) {
   const { state, dispatch } = useAppState();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Track[]>([]);
@@ -116,7 +125,21 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
   const [loadingMore, setLoadingMore] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // New playlist inline creation
+  const [newPlaylistOpen, setNewPlaylistOpen] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [pendingTrackForNewPlaylist, setPendingTrackForNewPlaylist] =
+    useState<Track | null>(null);
+
   // Trending / recommendations
+  const cfg = state.appCustomConfig;
+  const showTrending = cfg.showTrending !== false;
+  const showPopular = cfg.showPopular !== false;
+  const trendingLabel = cfg.trendingLabel || "Trending Now";
+  const popularLabel = cfg.popularLabel || "Popular Picks";
+  const maxTrending = cfg.maxTrending || 10;
+  const maxPopular = cfg.maxPopular || 6;
+
   const [trendingTracks, setTrendingTracks] = useState<Track[]>([]);
   const [popularTracks, setPopularTracks] = useState<Track[]>([]);
   const [trendingLoading, setTrendingLoading] = useState(false);
@@ -131,8 +154,12 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
       setTrendingLoading(true);
       try {
         const [trending, popular] = await Promise.all([
-          fetchTracksFromYT("trending music 2024", state.apiKey, 10),
-          fetchTracksFromYT("popular hits songs 2024", state.apiKey, 8),
+          fetchTracksFromYT("trending music 2024", state.apiKey, maxTrending),
+          fetchTracksFromYT(
+            "popular hits songs 2024",
+            state.apiKey,
+            maxPopular,
+          ),
         ]);
         setTrendingTracks(trending);
         setPopularTracks(popular);
@@ -144,7 +171,7 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
     };
 
     void fetchTrending();
-  }, [state.apiKey]);
+  }, [state.apiKey, maxTrending, maxPopular]);
 
   const searchYouTube = useCallback(
     async (q: string, pageToken = "", append = false) => {
@@ -166,7 +193,7 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
         const data = await res.json();
 
         if (data.error) {
-          throw new Error(data.error.message || "YouTube API error");
+          throw new Error(data.error.message || "API error");
         }
 
         const items: YouTubeSearchResult[] = data.items || [];
@@ -251,14 +278,13 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
   const isFavourite = (videoId: string) =>
     state.favourites.some((f) => f.videoId === videoId);
 
+  // Allow guests to favourite — no blocking
   const handleToggleFavourite = (track: Track) => {
-    if (!state.userEmail) {
-      // Guest — prompt sign in
-      onSignIn?.();
-      toast.info("Sign in to save tracks to your library.");
-      return;
-    }
+    const isCurrentlyFav = isFavourite(track.videoId);
     dispatch({ type: "TOGGLE_FAVOURITE", track });
+    if (!state.userEmail && !isCurrentlyFav) {
+      toast("Saved! Sign in to sync across devices.", { duration: 3000 });
+    }
   };
 
   const handleDownload = async (track: Track) => {
@@ -292,7 +318,7 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
     };
 
     // Try primary then fallback endpoint
-    let downloadUrl =
+    const downloadUrl =
       (await tryEndpoint("https://co.wuk.sh/api/json")) ||
       (await tryEndpoint("https://cobalt.tools/api/json"));
 
@@ -309,22 +335,48 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
       toast.dismiss(`dl-${track.videoId}`);
       toast.error(
         "Download service temporarily unavailable. Try again later.",
-        {
-          duration: 5000,
-        },
+        { duration: 5000 },
       );
     }
   };
 
+  // Allow guests to add to playlist — no blocking
   const handleAddToPlaylist = (playlistId: string, track: Track) => {
-    if (!state.userEmail) {
-      onSignIn?.();
-      toast.info("Sign in to add tracks to playlists.");
-      return;
-    }
     dispatch({ type: "ADD_TO_PLAYLIST", playlistId, track });
     const playlist = state.playlists.find((p) => p.id === playlistId);
     toast.success(`Added to "${playlist?.name || "Playlist"}"`);
+    if (!state.userEmail) {
+      toast("Sign in to sync your playlists across devices.", {
+        duration: 3000,
+      });
+    }
+  };
+
+  // "New playlist" quick-create from the dropdown
+  const handleRequestNewPlaylist = (track: Track) => {
+    setPendingTrackForNewPlaylist(track);
+    setNewPlaylistName("");
+    setNewPlaylistOpen(true);
+  };
+
+  const handleCreateAndAdd = () => {
+    if (!newPlaylistName.trim() || !pendingTrackForNewPlaylist) return;
+    const newPl: Playlist = {
+      id: `pl_${Date.now()}`,
+      name: newPlaylistName.trim(),
+      tracks: [],
+      createdAt: Date.now(),
+    };
+    dispatch({ type: "ADD_PLAYLIST", playlist: newPl });
+    dispatch({
+      type: "ADD_TO_PLAYLIST",
+      playlistId: newPl.id,
+      track: pendingTrackForNewPlaylist,
+    });
+    toast.success(`Created "${newPl.name}" and added track`);
+    setNewPlaylistOpen(false);
+    setPendingTrackForNewPlaylist(null);
+    setNewPlaylistName("");
   };
 
   const GENRE_CHIPS = [
@@ -355,7 +407,7 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
           >
             {/* Logo with glow ring */}
             <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-primary/20 blur-2xl scale-150 animate-pulse" />
+              <div className="absolute inset-0 rounded-full bg-primary/20 blur-2xl animate-glow-pulse" />
               <div className="absolute inset-0 rounded-full border-2 border-primary/20 scale-110" />
               <img
                 src="/assets/generated/tunesearch-logo-transparent.dim_200x200.png"
@@ -371,8 +423,7 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
                 {state.appCustomConfig?.appName || "TuneSearch"}
               </h1>
               <p className="text-muted-foreground/70 text-sm mt-2 font-medium tracking-wide">
-                {state.appCustomConfig?.tagline ||
-                  "Search and play music from YouTube"}
+                {state.appCustomConfig?.tagline || "Search and play music"}
               </p>
             </div>
           </motion.div>
@@ -390,7 +441,7 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
               }}
               data-ocid="search.cc_toggle"
             >
-              All Videos
+              All
             </Button>
             <Button
               size="sm"
@@ -449,7 +500,7 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
                 <button
                   type="button"
                   key={chip.label}
-                  className="flex items-center gap-1.5 bg-card/60 border border-border/70 hover:border-primary/50 hover:bg-primary/10 hover:text-primary rounded-full px-4 py-1.5 text-xs text-muted-foreground transition-all duration-150 font-medium"
+                  className="flex items-center gap-1.5 bg-card/60 border border-border/70 hover:border-primary/50 hover:bg-primary/10 hover:text-primary rounded-full px-4 py-1.5 text-xs text-muted-foreground transition-all duration-150 font-medium active:scale-95"
                   onClick={() => {
                     setQuery(chip.query);
                     handleSearch(chip.query);
@@ -511,96 +562,102 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
         </div>
       </div>
 
-      {/* Trending / Recommendations — shown before first search */}
+      {/* Trending / Recommendations — Spotify-style, shown before first search */}
       {!hasSearched && (
-        <div className="px-4 pb-6 space-y-8 overflow-y-auto">
-          {/* Trending Now */}
-          <section>
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              <h2 className="font-outfit text-base font-semibold">
-                Trending Now
-              </h2>
-            </div>
-
-            {trendingLoading ? (
-              <div className="flex gap-3 overflow-x-hidden">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
-                  <div key={i} className="shrink-0 w-[160px]">
-                    <div className="aspect-video rounded-lg bg-muted animate-pulse mb-2" />
-                    <div className="h-3 bg-muted animate-pulse rounded mb-1.5" />
-                    <div className="h-2.5 bg-muted/60 animate-pulse rounded w-2/3" />
-                  </div>
-                ))}
-              </div>
-            ) : trendingTracks.length > 0 ? (
-              <div
-                className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin"
-                data-ocid="search.trending.list"
-              >
-                {trendingTracks.map((track, idx) => (
-                  <TrendingCard
-                    key={`trending-${track.videoId}`}
-                    track={track}
-                    index={idx + 1}
-                    isFav={isFavourite(track.videoId)}
-                    onPlay={() => handlePlay(track, idx, trendingTracks)}
-                    onFavourite={() => handleToggleFavourite(track)}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </section>
-
-          {/* Popular Picks */}
-          {(trendingLoading || popularTracks.length > 0) && (
+        <div className="px-4 pb-8 space-y-10 overflow-y-auto">
+          {/* Trending Now — horizontal scroll row */}
+          {showTrending && (
             <section>
-              <div className="flex items-center gap-2 mb-3">
-                <Music className="h-4 w-4 text-secondary" />
-                <h2 className="font-outfit text-base font-semibold">
-                  Popular Picks
+              <div className="flex items-center gap-3 mb-4 pb-2 border-b border-border/50">
+                <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                <h2 className="text-sm font-medium text-foreground/80 tracking-wide">
+                  {trendingLabel}
                 </h2>
               </div>
 
               {trendingLoading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div className="flex gap-3 overflow-x-hidden">
                   {Array.from({ length: 6 }).map((_, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
+                    <div key={i} className="shrink-0 w-[140px]">
+                      <div className="aspect-square rounded-lg bg-muted animate-pulse mb-2" />
+                      <div className="h-3 bg-muted animate-pulse rounded mb-1.5" />
+                      <div className="h-2.5 bg-muted/60 animate-pulse rounded w-2/3" />
+                    </div>
+                  ))}
+                </div>
+              ) : trendingTracks.length > 0 ? (
+                <div
+                  className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin"
+                  data-ocid="search.trending.list"
+                >
+                  {trendingTracks.map((track, idx) => (
+                    <TrendingCard
+                      key={`trending-${track.videoId}`}
+                      track={track}
+                      index={idx + 1}
+                      isFav={isFavourite(track.videoId)}
+                      playlists={state.playlists}
+                      onPlay={() => handlePlay(track, idx, trendingTracks)}
+                      onFavourite={() => handleToggleFavourite(track)}
+                      onAddToPlaylist={(plId) =>
+                        handleAddToPlaylist(plId, track)
+                      }
+                      onRequestNewPlaylist={() =>
+                        handleRequestNewPlaylist(track)
+                      }
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          )}
+
+          {/* Popular Picks — vertical track list (Spotify style) */}
+          {showPopular && (trendingLoading || popularTracks.length > 0) && (
+            <section>
+              <div className="flex items-center gap-3 mb-4 pb-2 border-b border-border/50">
+                <Music className="h-3.5 w-3.5 text-secondary shrink-0" />
+                <h2 className="text-sm font-medium text-foreground/80 tracking-wide">
+                  {popularLabel}
+                </h2>
+              </div>
+
+              {trendingLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
                     <div
                       // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
                       key={i}
-                      className="bg-card rounded-xl border border-border overflow-hidden"
+                      className="flex items-center gap-3 p-2"
                     >
-                      <div className="aspect-video bg-muted animate-pulse" />
-                      <div className="p-3 space-y-1.5">
+                      <div className="w-10 h-10 rounded bg-muted animate-pulse shrink-0" />
+                      <div className="flex-1 space-y-1.5">
                         <div className="h-3 bg-muted animate-pulse rounded" />
-                        <div className="h-2.5 bg-muted/60 animate-pulse rounded w-2/3" />
+                        <div className="h-2.5 bg-muted/60 animate-pulse rounded w-1/2" />
                       </div>
+                      <div className="h-3 w-10 bg-muted animate-pulse rounded" />
                     </div>
                   ))}
                 </div>
               ) : (
-                <div
-                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
-                  data-ocid="search.popular.list"
-                >
+                <div className="space-y-1" data-ocid="search.popular.list">
                   {popularTracks.map((track, idx) => (
-                    <ResultCard
+                    <PopularTrackRow
                       key={`popular-${track.videoId}`}
                       track={track}
                       index={idx + 1}
                       isFav={isFavourite(track.videoId)}
                       playlists={state.playlists}
+                      isPlaying={state.currentTrack?.videoId === track.videoId}
                       onPlay={() => handlePlay(track, idx, popularTracks)}
                       onFavourite={() => handleToggleFavourite(track)}
                       onAddToPlaylist={(plId) =>
                         handleAddToPlaylist(plId, track)
                       }
-                      onAddToQueue={() => {
-                        dispatch({ type: "ADD_TO_QUEUE", track });
-                        toast.success("Added to queue");
-                      }}
-                      onDownload={() => handleDownload(track)}
+                      onRequestNewPlaylist={() =>
+                        handleRequestNewPlaylist(track)
+                      }
                     />
                   ))}
                 </div>
@@ -628,9 +685,7 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
               data-ocid="search.loading_state"
             >
               <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-              <p className="text-muted-foreground text-sm">
-                Searching YouTube…
-              </p>
+              <p className="text-muted-foreground text-sm">Searching…</p>
             </div>
           ) : results.length === 0 ? (
             <div
@@ -688,6 +743,7 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
                     onPlay={() => handlePlay(track, idx, results)}
                     onFavourite={() => handleToggleFavourite(track)}
                     onAddToPlaylist={(plId) => handleAddToPlaylist(plId, track)}
+                    onRequestNewPlaylist={() => handleRequestNewPlaylist(track)}
                     onAddToQueue={() => {
                       dispatch({ type: "ADD_TO_QUEUE", track });
                       toast.success("Added to queue");
@@ -719,25 +775,69 @@ export default function SearchPage({ onSignIn }: SearchPageProps) {
           )}
         </div>
       )}
+
+      {/* New Playlist Dialog */}
+      <Dialog open={newPlaylistOpen} onOpenChange={setNewPlaylistOpen}>
+        <DialogContent
+          className="sm:max-w-sm"
+          data-ocid="search.new_playlist.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>New Playlist</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              placeholder="Playlist name…"
+              value={newPlaylistName}
+              onChange={(e) => setNewPlaylistName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreateAndAdd()}
+              autoFocus
+              data-ocid="search.new_playlist.input"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setNewPlaylistOpen(false)}
+              data-ocid="search.new_playlist.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateAndAdd}
+              disabled={!newPlaylistName.trim()}
+              data-ocid="search.new_playlist.confirm_button"
+            >
+              Create &amp; Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-// Compact horizontal trending card
+// Compact horizontal trending card (square aspect, no rank badge)
 interface TrendingCardProps {
   track: Track;
   index: number;
   isFav: boolean;
+  playlists: Playlist[];
   onPlay: () => void;
   onFavourite: () => void;
+  onAddToPlaylist: (playlistId: string) => void;
+  onRequestNewPlaylist: () => void;
 }
 
 function TrendingCard({
   track,
   index,
   isFav,
+  playlists,
   onPlay,
   onFavourite,
+  onAddToPlaylist,
+  onRequestNewPlaylist,
 }: TrendingCardProps) {
   const [imgError, setImgError] = useState(false);
 
@@ -745,13 +845,19 @@ function TrendingCard({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.05, 0.4) }}
-      className="group shrink-0 w-[160px] cursor-pointer"
+      whileHover={{ scale: 1.03 }}
+      transition={{
+        type: "spring",
+        stiffness: 400,
+        damping: 20,
+        delay: Math.min(index * 0.05, 0.4),
+      }}
+      className="group shrink-0 w-[140px]"
       data-ocid={`search.trending.item.${index}`}
     >
       <button
         type="button"
-        className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2 w-full block"
+        className="relative aspect-square rounded-lg overflow-hidden bg-muted mb-2 w-full block"
         onClick={onPlay}
       >
         {imgError ? (
@@ -785,10 +891,6 @@ function TrendingCard({
             />
           </div>
         </div>
-        {/* Rank badge */}
-        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-          {index}
-        </div>
       </button>
 
       <div className="flex items-start gap-1">
@@ -804,6 +906,7 @@ function TrendingCard({
             {track.channelName}
           </p>
         </button>
+        {/* Heart */}
         <button
           type="button"
           className={`p-1 shrink-0 transition-colors ${isFav ? "text-red-400" : "text-muted-foreground/50 hover:text-red-400"}`}
@@ -812,12 +915,186 @@ function TrendingCard({
             onFavourite();
           }}
           aria-label={isFav ? "Remove from favourites" : "Add to favourites"}
+          data-ocid={`search.trending.favourite_button.${index}`}
         >
           <Heart
             className="h-3.5 w-3.5"
             fill={isFav ? "currentColor" : "none"}
           />
         </button>
+        {/* Add to playlist */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="p-1 shrink-0 text-muted-foreground/50 hover:text-foreground transition-colors"
+              aria-label="Add to playlist"
+              data-ocid={`search.trending.add_playlist_button.${index}`}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem
+              onClick={onRequestNewPlaylist}
+              className="font-medium text-primary focus:text-primary"
+            >
+              <Plus className="h-3.5 w-3.5 mr-2" />
+              New playlist…
+            </DropdownMenuItem>
+            {playlists.length > 0 && <DropdownMenuSeparator />}
+            {playlists.map((pl) => (
+              <DropdownMenuItem
+                key={pl.id}
+                onClick={() => onAddToPlaylist(pl.id)}
+              >
+                {pl.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </motion.div>
+  );
+}
+
+// Spotify-style horizontal track row for Popular Picks
+interface PopularTrackRowProps {
+  track: Track;
+  index: number;
+  isFav: boolean;
+  playlists: Playlist[];
+  isPlaying: boolean;
+  onPlay: () => void;
+  onFavourite: () => void;
+  onAddToPlaylist: (playlistId: string) => void;
+  onRequestNewPlaylist: () => void;
+}
+
+function PopularTrackRow({
+  track,
+  index,
+  isFav,
+  playlists,
+  isPlaying,
+  onPlay,
+  onFavourite,
+  onAddToPlaylist,
+  onRequestNewPlaylist,
+}: PopularTrackRowProps) {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: Math.min(index * 0.04, 0.3) }}
+      className={`group flex items-center gap-3 p-2 rounded-md hover:bg-card/80 transition-colors cursor-pointer ${isPlaying ? "bg-card border border-primary/30" : ""}`}
+      data-ocid={`search.popular.item.${index}`}
+    >
+      {/* Index / play icon */}
+      <div className="w-5 text-center shrink-0">
+        <span
+          className={`text-xs font-mono group-hover:hidden block ${isPlaying ? "text-primary" : "text-muted-foreground"}`}
+        >
+          {isPlaying ? "▶" : index}
+        </span>
+        <button
+          type="button"
+          onClick={onPlay}
+          className="hidden group-hover:block mx-auto text-foreground"
+          aria-label="Play"
+        >
+          <Play className="h-3 w-3" fill="currentColor" />
+        </button>
+      </div>
+
+      {/* Thumbnail */}
+      <div className="w-10 h-10 rounded overflow-hidden bg-muted shrink-0">
+        {imgError ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <Music className="h-4 w-4 text-muted-foreground/30" />
+          </div>
+        ) : (
+          <img
+            src={track.thumbnail}
+            alt={track.title}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
+        )}
+      </div>
+
+      {/* Info */}
+      <button
+        type="button"
+        className="flex-1 min-w-0 text-left"
+        onClick={onPlay}
+      >
+        <p
+          className={`text-sm font-medium line-clamp-1 ${isPlaying ? "text-primary" : ""}`}
+        >
+          {track.title}
+        </p>
+        <p className="text-xs text-muted-foreground line-clamp-1">
+          {track.channelName}
+        </p>
+      </button>
+
+      {/* Duration */}
+      <span className="text-xs text-muted-foreground font-mono shrink-0 hidden sm:block">
+        {track.duration}
+      </span>
+
+      {/* Actions */}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        {/* Heart */}
+        <button
+          type="button"
+          className={`p-1.5 rounded transition-colors ${isFav ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onFavourite();
+          }}
+          aria-label={isFav ? "Remove from favourites" : "Add to favourites"}
+          data-ocid={`search.popular.favourite_button.${index}`}
+        >
+          <Heart
+            className="h-3.5 w-3.5"
+            fill={isFav ? "currentColor" : "none"}
+          />
+        </button>
+        {/* Add to playlist */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="p-1.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Add to playlist"
+              data-ocid={`search.popular.add_playlist_button.${index}`}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem
+              onClick={onRequestNewPlaylist}
+              className="font-medium text-primary focus:text-primary"
+            >
+              <Plus className="h-3.5 w-3.5 mr-2" />
+              New playlist…
+            </DropdownMenuItem>
+            {playlists.length > 0 && <DropdownMenuSeparator />}
+            {playlists.map((pl) => (
+              <DropdownMenuItem
+                key={pl.id}
+                onClick={() => onAddToPlaylist(pl.id)}
+              >
+                {pl.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </motion.div>
   );
@@ -827,10 +1104,11 @@ interface ResultCardProps {
   track: Track;
   index: number;
   isFav: boolean;
-  playlists: import("@/store/useAppStore").Playlist[];
+  playlists: Playlist[];
   onPlay: () => void;
   onFavourite: () => void;
   onAddToPlaylist: (playlistId: string) => void;
+  onRequestNewPlaylist: () => void;
   onAddToQueue: () => void;
   onDownload: () => void;
 }
@@ -843,6 +1121,7 @@ function ResultCard({
   onPlay,
   onFavourite,
   onAddToPlaylist,
+  onRequestNewPlaylist,
   onAddToQueue,
   onDownload,
 }: ResultCardProps) {
@@ -859,8 +1138,14 @@ function ResultCard({
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.04, 0.5) }}
-      className="group bg-card rounded-xl border border-border hover:border-primary/30 transition-all duration-200 hover:shadow-card-hover overflow-hidden"
+      whileHover={{ y: -2 }}
+      transition={{
+        type: "spring",
+        stiffness: 400,
+        damping: 25,
+        delay: Math.min(index * 0.04, 0.5),
+      }}
+      className="group bg-card rounded-xl border border-border hover:border-primary/30 transition-colors duration-200 hover:shadow-card-hover overflow-hidden"
       data-ocid={`search.result.item.${index}`}
     >
       {/* Thumbnail */}
@@ -947,13 +1232,20 @@ function ResultCard({
                 <Plus className="h-4 w-4" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onClick={onAddToQueue}>
+                <Clock className="h-3.5 w-3.5 mr-2" />
                 Add to queue
               </DropdownMenuItem>
-              {playlists.length > 0 && (
-                <div className="border-t border-border my-1" />
-              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={onRequestNewPlaylist}
+                className="font-medium text-primary focus:text-primary"
+              >
+                <Plus className="h-3.5 w-3.5 mr-2" />
+                New playlist…
+              </DropdownMenuItem>
+              {playlists.length > 0 && <DropdownMenuSeparator />}
               {playlists.map((pl) => (
                 <DropdownMenuItem
                   key={pl.id}
@@ -962,14 +1254,6 @@ function ResultCard({
                   {pl.name}
                 </DropdownMenuItem>
               ))}
-              {playlists.length === 0 && (
-                <DropdownMenuItem
-                  disabled
-                  className="text-xs text-muted-foreground"
-                >
-                  No playlists yet
-                </DropdownMenuItem>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -1004,3 +1288,8 @@ function ResultCard({
     </motion.div>
   );
 }
+
+// Keep Badge import used for future use
+export { Badge };
+// Keep ChevronRight for potential future use
+export { ChevronRight };

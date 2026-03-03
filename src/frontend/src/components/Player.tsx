@@ -325,32 +325,39 @@ export default function Player() {
                 initial={{ y: 100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 100, opacity: 0 }}
-                className="fixed left-0 right-0 z-50 h-[76px] bg-card/90 backdrop-blur-2xl border-t border-border shadow-player bottom-[56px] md:bottom-0"
+                transition={{
+                  type: "spring",
+                  stiffness: 400,
+                  damping: 38,
+                  mass: 0.8,
+                }}
+                className="fixed left-0 right-0 z-50 h-[72px] bg-card/95 backdrop-blur-2xl border-t border-border shadow-player bottom-[56px] md:bottom-0"
               >
                 {/* Progress gradient bar */}
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-border/40">
                   <div
-                    className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-primary to-secondary"
                     style={{
                       width:
                         ytPlayer.duration > 0
                           ? `${(ytPlayer.currentTime / ytPlayer.duration) * 100}%`
                           : "0%",
+                      transition: "width 300ms linear",
                     }}
                   />
                 </div>
 
-                <div className="flex items-center gap-3 h-full px-4">
-                  {/* Thumbnail + Info */}
+                <div className="flex items-center h-full px-3 gap-2">
+                  {/* Thumbnail + Info — flex-1 with overflow hidden prevents pushing controls off screen */}
                   <button
                     type="button"
-                    className="flex items-center gap-3 flex-1 min-w-0"
+                    className="flex items-center gap-2.5 min-w-0 flex-1"
                     onClick={() =>
                       dispatch({ type: "SET_PLAYER_EXPANDED", expanded: true })
                     }
                     data-ocid="player.expand_button"
                   >
-                    <div className="w-11 h-11 rounded-lg shrink-0 overflow-hidden bg-muted">
+                    <div className="w-10 h-10 rounded-lg shrink-0 overflow-hidden bg-muted">
                       <img
                         src={currentTrack.thumbnail}
                         alt={currentTrack.title}
@@ -360,9 +367,9 @@ export default function Player() {
                         }}
                       />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium line-clamp-1">
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium line-clamp-1 text-left">
                           {currentTrack.title}
                         </p>
                         {ytPlayer.isPlaying && (
@@ -373,27 +380,29 @@ export default function Player() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-1">
+                      <p className="text-xs text-muted-foreground line-clamp-1 text-left">
                         {currentTrack.channelName}
                       </p>
                     </div>
                   </button>
 
-                  {/* Controls */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  {/* Controls — shrink-0 keeps them from collapsing; gap-1 on xs, gap-2 on sm+ */}
+                  <div className="shrink-0 flex items-center gap-1 sm:gap-2">
+                    {/* Prev — hidden on very small screens */}
                     <button
                       type="button"
-                      className="p-2 text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
+                      className="p-2 text-muted-foreground hover:text-foreground transition-colors duration-200 hidden sm:flex"
                       onClick={handlePrev}
                       data-ocid="player.prev_button"
                     >
                       <SkipBack className="h-4 w-4" />
                     </button>
 
-                    <button
+                    <motion.button
                       type="button"
-                      className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:bg-primary/90 transition-colors shadow-glow-sm"
+                      className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:bg-primary/90 transition-colors duration-200 shadow-glow-sm shrink-0"
                       onClick={ytPlayer.togglePlay}
+                      whileTap={{ scale: 0.88 }}
                       data-ocid="player.play_button"
                     >
                       {ytPlayer.isPlaying ? (
@@ -401,20 +410,21 @@ export default function Player() {
                       ) : (
                         <Play className="h-4 w-4 ml-0.5" fill="currentColor" />
                       )}
-                    </button>
+                    </motion.button>
 
                     <button
                       type="button"
-                      className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                      className="p-2 text-muted-foreground hover:text-foreground transition-colors duration-200 flex"
                       onClick={handleNext}
                       data-ocid="player.next_button"
                     >
                       <SkipForward className="h-4 w-4" />
                     </button>
 
+                    {/* Heart — hidden on xs to prevent crowding */}
                     <button
                       type="button"
-                      className={`p-2 transition-colors hidden sm:block ${isFav ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
+                      className={`p-2 transition-colors duration-200 hidden sm:flex ${isFav ? "text-secondary" : "text-muted-foreground hover:text-secondary"}`}
                       onClick={() =>
                         dispatch({
                           type: "TOGGLE_FAVOURITE",
@@ -429,9 +439,10 @@ export default function Player() {
                       />
                     </button>
 
+                    {/* Queue — only on md+ */}
                     <button
                       type="button"
-                      className="p-2 text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
+                      className="p-2 text-muted-foreground hover:text-foreground transition-colors duration-200 hidden md:flex"
                       onClick={() =>
                         dispatch({
                           type: "SET_QUEUE_OPEN",
@@ -589,8 +600,8 @@ function ExpandedPlayer({
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
       exit={{ y: "100%" }}
-      transition={{ type: "spring", damping: 28, stiffness: 280 }}
-      className="fixed inset-0 z-50 flex flex-col"
+      transition={{ type: "spring", stiffness: 320, damping: 32, mass: 0.9 }}
+      className="fixed inset-0 z-50 flex flex-col md:rounded-none rounded-t-3xl"
       style={{ background: "var(--gradient-hero)" }}
     >
       {/* Blurred background */}
@@ -616,7 +627,7 @@ function ExpandedPlayer({
           >
             <ChevronDown className="h-6 w-6" />
           </button>
-          <span className="text-sm font-medium text-muted-foreground">
+          <span className="text-sm font-medium text-muted-foreground opacity-70">
             Now Playing
           </span>
           <div className="flex items-center gap-1">
@@ -648,7 +659,7 @@ function ExpandedPlayer({
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="w-full max-w-xs aspect-square rounded-xl overflow-hidden shadow-glow-md bg-card"
+            className="w-full max-w-xs aspect-square rounded-xl overflow-hidden shadow-glow-md bg-card will-change-transform"
           >
             {imgError ? (
               <div className="w-full h-full flex items-center justify-center bg-muted">
@@ -700,17 +711,19 @@ function ExpandedPlayer({
                 <Lock className="h-5 w-5" />
               </button>
             )}
-            <button
+            <motion.button
               type="button"
               onClick={onFavourite}
-              className={`p-2 transition-colors ${isFav ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
+              className={`p-2 transition-colors duration-200 ${isFav ? "text-secondary" : "text-muted-foreground hover:text-secondary"}`}
+              animate={{ scale: isFav ? [1, 1.25, 1] : 1 }}
+              transition={{ duration: 0.3 }}
               data-ocid="player.favourite_button"
             >
               <Heart
                 className="h-6 w-6"
                 fill={isFav ? "currentColor" : "none"}
               />
-            </button>
+            </motion.button>
           </div>
         </div>
 
@@ -738,12 +751,12 @@ function ExpandedPlayer({
           </div>
         </div>
 
-        {/* Main controls */}
-        <div className="flex items-center justify-between mt-4">
+        {/* Main controls — Shuffle | Prev | Play | Next | Repeat */}
+        <div className="flex items-center justify-between mt-5 gap-4">
           <button
             type="button"
             onClick={onShuffleToggle}
-            className={`p-2 transition-colors ${prefs.shuffle ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+            className={`p-3 rounded-full transition-colors duration-200 ${prefs.shuffle ? "text-primary bg-primary/12" : "text-muted-foreground hover:text-foreground hover:bg-white/5"}`}
             data-ocid="player.shuffle_toggle"
           >
             <Shuffle className="h-5 w-5" />
@@ -752,25 +765,18 @@ function ExpandedPlayer({
           <button
             type="button"
             onClick={onPrev}
-            className="p-3 text-foreground/70 hover:text-foreground transition-colors"
+            className="p-3 text-foreground/80 hover:text-foreground transition-colors duration-200 rounded-full hover:bg-white/5"
             data-ocid="player.prev_button"
           >
             <SkipBack className="h-6 w-6" />
           </button>
 
-          <button
+          <motion.button
             type="button"
-            onClick={() => ytPlayer.seekBy(-10)}
-            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-            data-ocid="player.seek_back_button"
-          >
-            <span className="text-[11px] font-bold font-mono">-10</span>
-          </button>
-
-          <button
-            type="button"
-            className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-glow-md hover:bg-primary/90 transition-all active:scale-95"
+            className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-glow-md hover:bg-primary/90 transition-colors duration-200"
             onClick={ytPlayer.togglePlay}
+            whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.05 }}
             data-ocid="player.play_button"
           >
             {ytPlayer.isPlaying ? (
@@ -778,21 +784,12 @@ function ExpandedPlayer({
             ) : (
               <Play className="h-7 w-7 ml-1" fill="currentColor" />
             )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => ytPlayer.seekBy(10)}
-            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-            data-ocid="player.seek_forward_button"
-          >
-            <span className="text-[11px] font-bold font-mono">+10</span>
-          </button>
+          </motion.button>
 
           <button
             type="button"
             onClick={onNext}
-            className="p-3 text-foreground/70 hover:text-foreground transition-colors"
+            className="p-3 text-foreground/80 hover:text-foreground transition-colors duration-200 rounded-full hover:bg-white/5"
             data-ocid="player.next_button"
           >
             <SkipForward className="h-6 w-6" />
@@ -801,7 +798,7 @@ function ExpandedPlayer({
           <button
             type="button"
             onClick={onCycleRepeat}
-            className={`p-2 transition-colors ${prefs.repeatMode !== "off" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+            className={`p-3 rounded-full transition-colors duration-200 ${prefs.repeatMode !== "off" ? "text-primary bg-primary/12" : "text-muted-foreground hover:text-foreground hover:bg-white/5"}`}
             data-ocid="player.repeat_button"
           >
             {prefs.repeatMode === "one" ? (
@@ -812,12 +809,32 @@ function ExpandedPlayer({
           </button>
         </div>
 
+        {/* Seek ±10 secondary row — below main controls, less prominent */}
+        <div className="flex items-center justify-center gap-8 mt-2">
+          <button
+            type="button"
+            onClick={() => ytPlayer.seekBy(-10)}
+            className="px-3 py-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors duration-200 text-xs font-semibold font-mono tracking-tight"
+            data-ocid="player.seek_back_button"
+          >
+            −10s
+          </button>
+          <button
+            type="button"
+            onClick={() => ytPlayer.seekBy(10)}
+            className="px-3 py-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors duration-200 text-xs font-semibold font-mono tracking-tight"
+            data-ocid="player.seek_forward_button"
+          >
+            +10s
+          </button>
+        </div>
+
         {/* Volume */}
         <div className="flex items-center gap-3 mt-4">
           <button
             type="button"
             onClick={ytPlayer.toggleMute}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors duration-200 shrink-0"
           >
             {ytPlayer.isMuted || ytPlayer.volume === 0 ? (
               <VolumeX className="h-4 w-4" />
@@ -830,7 +847,7 @@ function ExpandedPlayer({
             max={100}
             step={1}
             onValueChange={([v]) => ytPlayer.setVolume(v)}
-            className="flex-1"
+            className="flex-1 min-w-0"
             data-ocid="player.volume_slider"
           />
         </div>

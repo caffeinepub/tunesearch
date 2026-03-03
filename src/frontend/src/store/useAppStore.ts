@@ -33,6 +33,16 @@ export interface AppCustomConfig {
   logoUrl: string;
   bannerUrl: string;
   creditsHtml: string;
+  // Theme
+  accentColor: string;
+  fontFamily: string;
+  // Homepage
+  showTrending: boolean;
+  showPopular: boolean;
+  trendingLabel: string;
+  popularLabel: string;
+  maxTrending: number;
+  maxPopular: number;
 }
 
 export interface ConsoleLogEntry {
@@ -108,6 +118,7 @@ export type AppAction =
   | { type: "ADD_SEARCH_HISTORY"; query: string }
   | { type: "REMOVE_SEARCH_HISTORY"; query: string }
   | { type: "CLEAR_SEARCH_HISTORY" }
+  | { type: "SET_FAVOURITES"; favourites: Track[] }
   | { type: "SET_PREFS"; prefs: Partial<Prefs> }
   | { type: "SET_ADMIN"; isAdmin: boolean }
   | { type: "SET_USER_EMAIL"; email: string }
@@ -185,6 +196,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         : [action.track, ...state.favourites];
       localStorage.setItem("ts_favourites", JSON.stringify(updated));
       return { ...state, favourites: updated };
+    }
+    case "SET_FAVOURITES": {
+      localStorage.setItem("ts_favourites", JSON.stringify(action.favourites));
+      return { ...state, favourites: action.favourites };
     }
     case "SET_PLAYLISTS": {
       localStorage.setItem("ts_playlists", JSON.stringify(action.playlists));
@@ -327,6 +342,14 @@ const DEFAULT_APP_CONFIG: AppCustomConfig = {
   logoUrl: "/assets/generated/tunesearch-logo-transparent.dim_200x200.png",
   bannerUrl: "",
   creditsHtml: "Developed by DemonXEnma in Sponser with Caffeine",
+  accentColor: "",
+  fontFamily: "",
+  showTrending: true,
+  showPopular: true,
+  trendingLabel: "Trending Now",
+  popularLabel: "Popular Picks",
+  maxTrending: 10,
+  maxPopular: 6,
 };
 
 const DEFAULT_ADMIN_EMAILS = [SUPER_ADMIN];
