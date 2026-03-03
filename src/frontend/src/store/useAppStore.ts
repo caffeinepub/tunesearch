@@ -308,7 +308,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       if (state.adminEmails.includes(action.email)) return state;
       const updated = [...state.adminEmails, action.email];
       localStorage.setItem("ts_admin_emails", JSON.stringify(updated));
-      return { ...state, adminEmails: updated };
+      // Also elevate current user if they were just granted admin
+      const grantUpdatesCurrentUser =
+        state.userEmail.toLowerCase() === action.email.toLowerCase();
+      return {
+        ...state,
+        adminEmails: updated,
+        isAdmin: state.isAdmin || grantUpdatesCurrentUser,
+      };
     }
     case "REVOKE_ADMIN": {
       if (action.email === SUPER_ADMIN) return state; // never revoke super admin

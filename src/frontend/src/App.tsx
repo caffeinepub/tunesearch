@@ -9,7 +9,6 @@ import RecentlyPlayedPage from "@/components/RecentlyPlayedPage";
 import SearchPage from "@/components/SearchPage";
 import SettingsDrawer from "@/components/SettingsDrawer";
 import Sidebar, { MobileTabBar } from "@/components/Sidebar";
-import SignInButton from "@/components/SignInButton";
 import SignInModal from "@/components/SignInModal";
 import TopHeader from "@/components/TopHeader";
 import { Toaster } from "@/components/ui/sonner";
@@ -144,7 +143,7 @@ function InnerLayout({
             <div
               className={`flex flex-col flex-1 overflow-hidden ${bottomPad}`}
             >
-              <TopHeader />
+              <TopHeader onOpenSignIn={onOpenSignIn} />
               <main className="flex-1 overflow-hidden relative">
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -172,7 +171,6 @@ function InnerLayout({
             <QueuePanel />
             <SettingsDrawer />
             <MobileTabBar onOpenSignIn={onOpenSignIn} />
-            <SignInButton onOpenSignIn={onOpenSignIn} />
             <SignInModal open={signInOpen} onClose={onCloseSignIn} />
             <Toaster richColors position="top-right" />
           </div>
