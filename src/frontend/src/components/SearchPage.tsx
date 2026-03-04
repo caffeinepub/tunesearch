@@ -67,6 +67,15 @@ function parseDuration(iso: string): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function isQuotaError(data: {
+  error?: { code?: number; errors?: { reason?: string }[] };
+}): boolean {
+  if (!data.error) return false;
+  if (data.error.code === 403) return true;
+  const reason = data.error.errors?.[0]?.reason;
+  return reason === "quotaExceeded" || reason === "dailyLimitExceeded";
+}
+
 async function fetchTracksFromYT(
   query: string,
   apiKey: string,
@@ -145,20 +154,73 @@ export default function SearchPage({ onSignIn: _onSignIn }: SearchPageProps) {
   const [trendingLoading, setTrendingLoading] = useState(false);
   const trendingFetched = useRef(false);
 
-  // Fetch trending on mount
+  // Stable refs to avoid stale closures in the one-shot trending fetch
+  const apiKeyRef = useRef(state.apiKey);
+  const apiKeysRef = useRef(state.apiKeys);
+  const apiKeyIndexRef = useRef(state.apiKeyIndex);
+  const maxTrendingRef = useRef(maxTrending);
+  const maxPopularRef = useRef(maxPopular);
+  const dispatchRef = useRef(dispatch);
+
   useEffect(() => {
-    if (trendingFetched.current || !state.apiKey) return;
+    apiKeyRef.current = state.apiKey;
+  }, [state.apiKey]);
+  useEffect(() => {
+    apiKeysRef.current = state.apiKeys;
+  }, [state.apiKeys]);
+  useEffect(() => {
+    apiKeyIndexRef.current = state.apiKeyIndex;
+  }, [state.apiKeyIndex]);
+  useEffect(() => {
+    maxTrendingRef.current = maxTrending;
+  }, [maxTrending]);
+  useEffect(() => {
+    maxPopularRef.current = maxPopular;
+  }, [maxPopular]);
+  useEffect(() => {
+    dispatchRef.current = dispatch;
+  }, [dispatch]);
+
+  // Fetch trending on mount (one-shot) with quota-aware rotation
+  useEffect(() => {
+    if (trendingFetched.current || !apiKeyRef.current) return;
     trendingFetched.current = true;
+
+    const fetchTrendingWithRotation = async (
+      query: string,
+      key: string,
+      max: number,
+    ): Promise<Track[]> => {
+      try {
+        const result = await fetchTracksFromYT(query, key, max);
+        if (result.length === 0) {
+          const nextIdx =
+            (apiKeyIndexRef.current + 1) % apiKeysRef.current.length;
+          const nextKey = apiKeysRef.current[nextIdx];
+          if (nextKey && nextKey !== key) {
+            dispatchRef.current({ type: "ROTATE_API_KEY" });
+            return fetchTracksFromYT(query, nextKey, max);
+          }
+        }
+        return result;
+      } catch {
+        return [];
+      }
+    };
 
     const fetchTrending = async () => {
       setTrendingLoading(true);
       try {
         const [trending, popular] = await Promise.all([
-          fetchTracksFromYT("trending music 2024", state.apiKey, maxTrending),
-          fetchTracksFromYT(
+          fetchTrendingWithRotation(
+            "trending music 2024",
+            apiKeyRef.current,
+            maxTrendingRef.current,
+          ),
+          fetchTrendingWithRotation(
             "popular hits songs 2024",
-            state.apiKey,
-            maxPopular,
+            apiKeyRef.current,
+            maxPopularRef.current,
           ),
         ]);
         setTrendingTracks(trending);
@@ -171,7 +233,7 @@ export default function SearchPage({ onSignIn: _onSignIn }: SearchPageProps) {
     };
 
     void fetchTrending();
-  }, [state.apiKey, maxTrending, maxPopular]);
+  }, []);
 
   const searchYouTube = useCallback(
     async (q: string, pageToken = "", append = false) => {
@@ -185,12 +247,35 @@ export default function SearchPage({ onSignIn: _onSignIn }: SearchPageProps) {
       else setLoading(true);
       setError(null);
 
-      try {
+      const doSearch = async (keyToUse: string) => {
         const licenseParam = ccOnly ? "&videoLicense=creativeCommon" : "";
         const pageParam = pageToken ? `&pageToken=${pageToken}` : "";
-        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=20&q=${encodeURIComponent(q)}${licenseParam}${pageParam}&key=${state.apiKey}`;
+        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=20&q=${encodeURIComponent(q)}${licenseParam}${pageParam}&key=${keyToUse}`;
         const res = await fetch(searchUrl);
-        const data = await res.json();
+        return res.json() as Promise<{
+          error?: {
+            code?: number;
+            message?: string;
+            errors?: { reason?: string }[];
+          };
+          items?: YouTubeSearchResult[];
+          nextPageToken?: string;
+        }>;
+      };
+
+      try {
+        let activeKey = state.apiKey;
+        let data = await doSearch(activeKey);
+
+        // Quota exceeded → rotate key and retry once
+        if (isQuotaError(data)) {
+          const nextKey =
+            state.apiKeys[(state.apiKeyIndex + 1) % state.apiKeys.length];
+          dispatch({ type: "ROTATE_API_KEY" });
+          toast("Switching to next API key…", { duration: 2000 });
+          activeKey = nextKey;
+          data = await doSearch(activeKey);
+        }
 
         if (data.error) {
           throw new Error(data.error.message || "API error");
@@ -207,7 +292,7 @@ export default function SearchPage({ onSignIn: _onSignIn }: SearchPageProps) {
         }
 
         // Get video details (duration + license)
-        const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,status&id=${videoIds.join(",")}&key=${state.apiKey}`;
+        const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,status&id=${videoIds.join(",")}&key=${activeKey}`;
         const detailsRes = await fetch(detailsUrl);
         const detailsData = await detailsRes.json();
         const detailsMap = new Map<string, YouTubeVideoDetails>(
@@ -249,7 +334,7 @@ export default function SearchPage({ onSignIn: _onSignIn }: SearchPageProps) {
         setLoadingMore(false);
       }
     },
-    [state.apiKey, ccOnly],
+    [state.apiKey, state.apiKeys, state.apiKeyIndex, ccOnly, dispatch],
   );
 
   const handleSearch = useCallback(

@@ -86,6 +86,8 @@ export interface AppState {
 
   // Data (synced with localStorage)
   apiKey: string;
+  apiKeys: string[];
+  apiKeyIndex: number;
   favourites: Track[];
   playlists: Playlist[];
   recentlyPlayed: Track[];
@@ -127,7 +129,10 @@ export type AppAction =
   | { type: "GRANT_ADMIN"; email: string }
   | { type: "REVOKE_ADMIN"; email: string }
   | { type: "ADD_CONSOLE_LOG"; entry: ConsoleLogEntry }
-  | { type: "CLEAR_CONSOLE_LOGS" };
+  | { type: "CLEAR_CONSOLE_LOGS" }
+  | { type: "ROTATE_API_KEY" }
+  | { type: "SET_API_KEYS"; keys: string[] }
+  | { type: "SET_API_KEY_INDEX"; index: number };
 
 const SUPER_ADMIN = "Prajwol9847@gmail.com";
 
@@ -278,11 +283,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, prefs: updated };
     }
     case "SET_ADMIN": {
-      if (!action.isAdmin) {
-        localStorage.removeItem("ts_user_email");
-        return { ...state, isAdmin: false, userEmail: "" };
-      }
-      return { ...state, isAdmin: true };
+      // Never wipe userEmail here — only toggle the admin flag
+      return { ...state, isAdmin: action.isAdmin };
     }
     case "SET_USER_EMAIL": {
       const isAdmin = state.adminEmails.some(
@@ -308,14 +310,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       if (state.adminEmails.includes(action.email)) return state;
       const updated = [...state.adminEmails, action.email];
       localStorage.setItem("ts_admin_emails", JSON.stringify(updated));
-      // Also elevate current user if they were just granted admin
-      const grantUpdatesCurrentUser =
-        state.userEmail.toLowerCase() === action.email.toLowerCase();
-      return {
-        ...state,
-        adminEmails: updated,
-        isAdmin: state.isAdmin || grantUpdatesCurrentUser,
-      };
+      return { ...state, adminEmails: updated };
     }
     case "REVOKE_ADMIN": {
       if (action.email === SUPER_ADMIN) return state; // never revoke super admin
@@ -329,6 +324,27 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
     case "CLEAR_CONSOLE_LOGS":
       return { ...state, consoleLogs: [] };
+    case "ROTATE_API_KEY": {
+      const nextIndex = (state.apiKeyIndex + 1) % state.apiKeys.length;
+      const nextKey = state.apiKeys[nextIndex];
+      try {
+        localStorage.setItem("ts_api_key", nextKey);
+      } catch {}
+      return { ...state, apiKeyIndex: nextIndex, apiKey: nextKey };
+    }
+    case "SET_API_KEYS": {
+      const keys = action.keys.length > 0 ? action.keys : state.apiKeys;
+      const key = keys[state.apiKeyIndex] ?? keys[0];
+      return { ...state, apiKeys: keys, apiKey: key };
+    }
+    case "SET_API_KEY_INDEX": {
+      const idx = Math.max(0, Math.min(action.index, state.apiKeys.length - 1));
+      const key = state.apiKeys[idx];
+      try {
+        localStorage.setItem("ts_api_key", key);
+      } catch {}
+      return { ...state, apiKeyIndex: idx, apiKey: key };
+    }
     default:
       return state;
   }
@@ -361,6 +377,21 @@ const DEFAULT_APP_CONFIG: AppCustomConfig = {
 
 const DEFAULT_ADMIN_EMAILS = [SUPER_ADMIN];
 
+const API_KEY_POOL = [
+  "AIzaSyDo7AkNZUqlAz11qjn5wJf3DgLh6p8v7K0",
+  "AIzaSyCkB43YZJlIF0LI2zSlnedbZqXQ_1S7vns",
+  "AIzaSyBVskCATK1RrxbOrNFFVhAFsXUU5z2OttI",
+  "AIzaSyDDM41RFIUe9cAPVQkPaT4A2QjE30UoR5I",
+  "AIzaSyD-HChtivZX8WEe3qF0LooFX8ZpHwPs6k4",
+  "AIzaSyCFRB0br4DltKSL9okU1dZ_zqcL9ajWU_M",
+  "AIzaSyBWVYnX3Y4Nvtti2K4p6wijHZTxAhkx4MU",
+  "AIzaSyBerItSQnUz_GIpiuXzjLvHD3GFt4F14zU",
+  "AIzaSyBqPkZxrsegFkh8zrMvAz93LUolnD2S3v8",
+  "AIzaSyDbOBUwQxgrAuQL8HFaVZsoLo_q9z7cW0A",
+  "AIzaSyBYQ6J5E8RiSm4-mK0268PgDIyS8YGhIKY",
+  "AIzaSyAkl6Ndny_NbSD2hAdO-5MOWVnBqQzKDsg",
+];
+
 export function getInitialState(): AppState {
   const loadedEmails = loadFromStorage<string[]>(
     "ts_admin_emails",
@@ -376,6 +407,12 @@ export function getInitialState(): AppState {
   const isAdmin = userEmail
     ? adminEmails.some((e) => e.toLowerCase() === userEmail.toLowerCase())
     : false;
+
+  // Always start from index 0 with the first key in the pool
+  const apiKey = API_KEY_POOL[0];
+  try {
+    localStorage.setItem("ts_api_key", apiKey);
+  } catch {}
 
   return {
     currentTrack: null,
@@ -394,9 +431,9 @@ export function getInitialState(): AppState {
       DEFAULT_APP_CONFIG,
     ),
     consoleLogs: [],
-    apiKey:
-      loadFromStorage<string>("ts_api_key", "") ||
-      "AIzaSyDo7AkNZUqlAz11qjn5wJf3DgLh6p8v7K0",
+    apiKey,
+    apiKeys: API_KEY_POOL,
+    apiKeyIndex: 0,
     favourites: loadFromStorage<Track[]>("ts_favourites", []),
     playlists: loadFromStorage<Playlist[]>("ts_playlists", []),
     recentlyPlayed: loadFromStorage<Track[]>("ts_recently_played", []),

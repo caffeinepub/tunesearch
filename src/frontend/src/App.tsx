@@ -9,6 +9,7 @@ import RecentlyPlayedPage from "@/components/RecentlyPlayedPage";
 import SearchPage from "@/components/SearchPage";
 import SettingsDrawer from "@/components/SettingsDrawer";
 import Sidebar, { MobileTabBar } from "@/components/Sidebar";
+import SignInButton from "@/components/SignInButton";
 import SignInModal from "@/components/SignInModal";
 import TopHeader from "@/components/TopHeader";
 import { Toaster } from "@/components/ui/sonner";
@@ -138,12 +139,25 @@ function InnerLayout({
           : "pb-[56px] md:pb-0";
 
         return (
-          <div className="flex h-screen overflow-hidden bg-background text-foreground">
+          <div className="flex h-screen overflow-hidden bg-background text-foreground relative">
+            {/* Animated background orbs */}
+            <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+              <div className="animate-orb-1 absolute w-[600px] h-[600px] rounded-full opacity-[0.07] blur-[80px] bg-primary top-[-200px] left-[-200px]" />
+              <div className="animate-orb-2 absolute w-[500px] h-[500px] rounded-full opacity-[0.06] blur-[100px] bg-secondary bottom-[-150px] right-[-150px]" />
+              <div
+                className="animate-orb-3 absolute w-[400px] h-[400px] rounded-full opacity-[0.05] blur-[120px]"
+                style={{
+                  backgroundColor: "oklch(0.72 0.18 280)",
+                  top: "30%",
+                  left: "40%",
+                }}
+              />
+            </div>
             <Sidebar />
             <div
-              className={`flex flex-col flex-1 overflow-hidden ${bottomPad}`}
+              className={`flex flex-col flex-1 overflow-hidden relative z-10 ${bottomPad}`}
             >
-              <TopHeader onOpenSignIn={onOpenSignIn} />
+              <TopHeader />
               <main className="flex-1 overflow-hidden relative">
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -171,6 +185,7 @@ function InnerLayout({
             <QueuePanel />
             <SettingsDrawer />
             <MobileTabBar onOpenSignIn={onOpenSignIn} />
+            <SignInButton onOpenSignIn={onOpenSignIn} />
             <SignInModal open={signInOpen} onClose={onCloseSignIn} />
             <Toaster richColors position="top-right" />
           </div>

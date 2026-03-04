@@ -719,63 +719,125 @@ function UsersTab({ principal }: { principal?: string }) {
 // --- Content Tab ---
 function ContentTab() {
   const { state, dispatch } = useAppState();
-  const [apiKey, setApiKey] = useState(state.apiKey);
-  const [showKey, setShowKey] = useState(false);
+  const [showKeys, setShowKeys] = useState<Record<number, boolean>>({});
+  const [newKey, setNewKey] = useState("");
   const [ccDefault, setCcDefault] = useState(false);
 
-  const handleSaveApiKey = () => {
-    dispatch({ type: "SET_API_KEY", key: apiKey });
-    toast.success("API key updated");
+  const maskKey = (key: string) => `${key.slice(0, 8)}…${key.slice(-4)}`;
+
+  const handleAddKey = () => {
+    const trimmed = newKey.trim();
+    if (!trimmed || state.apiKeys.includes(trimmed)) return;
+    dispatch({ type: "SET_API_KEYS", keys: [...state.apiKeys, trimmed] });
+    toast.success("API key added to pool");
+    setNewKey("");
+  };
+
+  const handleUseKey = (index: number) => {
+    dispatch({ type: "SET_API_KEY_INDEX", index });
+    toast.success(`Switched to key ${index + 1}`);
   };
 
   return (
     <div className="p-6 max-w-2xl space-y-8">
       <SectionHeader
         title="Content Settings"
-        description="Manage API configuration and content preferences"
+        description="Manage API key rotation pool and content preferences"
       />
 
-      {/* API Key */}
+      {/* API Key Pool */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Key className="h-4 w-4 text-primary" />
-          YouTube API Key
-        </h3>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Input
-              type={showKey ? "text" : "password"}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="AIza…"
-              className="pr-10"
-              data-ocid="dashboard.api_key_input"
-            />
-            <button
-              type="button"
-              onClick={() => setShowKey((v) => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showKey ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </button>
-          </div>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Key className="h-4 w-4 text-primary" />
+            API Key Pool ({state.apiKeys.length} keys)
+          </h3>
+          <span className="text-xs text-muted-foreground">
+            Active: Key {state.apiKeyIndex + 1}
+          </span>
+        </div>
+
+        <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin">
+          {state.apiKeys.map((key, idx) => {
+            const isActive = idx === state.apiKeyIndex;
+            const isVisible = showKeys[idx];
+            return (
+              <div
+                key={key.slice(0, 16)}
+                className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${
+                  isActive
+                    ? "bg-primary/10 border-primary/40"
+                    : "bg-card border-border"
+                }`}
+                data-ocid={`dashboard.api_key.item.${idx + 1}`}
+              >
+                <span
+                  className={`text-xs font-mono w-5 shrink-0 ${isActive ? "text-primary font-bold" : "text-muted-foreground"}`}
+                >
+                  {idx + 1}
+                </span>
+                <span className="flex-1 text-xs font-mono text-muted-foreground truncate">
+                  {isVisible ? key : maskKey(key)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowKeys((prev) => ({ ...prev, [idx]: !prev[idx] }))
+                  }
+                  className="text-muted-foreground hover:text-foreground shrink-0"
+                  title={isVisible ? "Hide key" : "Show key"}
+                >
+                  {isVisible ? (
+                    <EyeOff className="h-3.5 w-3.5" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" />
+                  )}
+                </button>
+                {isActive ? (
+                  <span className="text-[10px] font-semibold text-primary border border-primary/30 bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
+                    Active
+                  </span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[10px] shrink-0"
+                    onClick={() => handleUseKey(idx)}
+                    data-ocid={`dashboard.api_key.use_button.${idx + 1}`}
+                  >
+                    Use
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Keys rotate automatically when quota is exceeded. Each key allows ~100
+          searches/day.
+        </p>
+
+        {/* Add new key */}
+        <div className="flex gap-2 pt-1">
+          <Input
+            placeholder="Add new API key (AIza…)"
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddKey()}
+            className="flex-1 text-xs font-mono"
+            data-ocid="dashboard.api_key_add_input"
+          />
           <Button
-            onClick={handleSaveApiKey}
-            className="gap-2"
-            data-ocid="dashboard.api_key_save_button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddKey}
+            disabled={!newKey.trim()}
+            data-ocid="dashboard.api_key_add_button"
           >
-            <Save className="h-4 w-4" />
-            Save
+            Add Key
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          The embedded key works for all users. Update only if you need a
-          different quota.
-        </p>
       </div>
 
       {/* CC default toggle */}
