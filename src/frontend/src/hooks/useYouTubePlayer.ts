@@ -121,6 +121,7 @@ export function useYouTubePlayer({
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
+    // 1 second interval — sufficient for progress bar + saves CPU / battery
     timerRef.current = window.setInterval(() => {
       if (playerRef.current) {
         const ct = playerRef.current.getCurrentTime() || 0;
@@ -140,7 +141,7 @@ export function useYouTubePlayer({
           }
         }
       }
-    }, 500);
+    }, 1000);
   }, []);
 
   const stopTimer = useCallback(() => {

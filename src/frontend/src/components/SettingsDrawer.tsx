@@ -315,7 +315,7 @@ export default function SettingsDrawer() {
                       <img
                         src={
                           state.appCustomConfig?.logoUrl ||
-                          "/assets/generated/tunesearch-logo-transparent.dim_200x200.png"
+                          "/assets/uploads/tunesearch-logo-user.jpg"
                         }
                         alt={state.appCustomConfig?.appName || "TuneSearch"}
                         className="w-10 h-10 object-contain"

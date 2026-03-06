@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { useBackgroundPermission } from "@/hooks/useBackgroundPermission";
 import { useYouTubePlayer } from "@/hooks/useYouTubePlayer";
 import { useAppState } from "@/store/useAppStore";
 import type { RepeatMode, Track } from "@/store/useAppStore";
@@ -182,6 +183,9 @@ export default function Player() {
     onPrev: () => handlePrevRef.current(),
     onNext: () => handleNextRef.current(),
   });
+
+  // Request background permission (wake lock + persistent storage) when playing
+  useBackgroundPermission(ytPlayer.isPlaying);
 
   // Keep loadAndPlay ref up to date
   useEffect(() => {

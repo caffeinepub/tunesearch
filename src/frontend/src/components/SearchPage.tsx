@@ -495,7 +495,7 @@ export default function SearchPage({ onSignIn: _onSignIn }: SearchPageProps) {
               <div className="absolute inset-0 rounded-full bg-primary/20 blur-2xl animate-glow-pulse" />
               <div className="absolute inset-0 rounded-full border-2 border-primary/20 scale-110" />
               <img
-                src="/assets/generated/tunesearch-logo-transparent.dim_200x200.png"
+                src="/assets/uploads/tunesearch-logo-user.jpg"
                 alt="TuneSearch"
                 className="w-28 h-28 object-contain relative z-10 drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.6)]"
                 onError={(e) => {

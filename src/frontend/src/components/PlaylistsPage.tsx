@@ -23,6 +23,7 @@ import {
   Music,
   Play,
   Plus,
+  Shuffle,
   Trash2,
   X,
 } from "lucide-react";
@@ -280,6 +281,16 @@ function PlaylistDetail({
     dispatch({ type: "ADD_RECENTLY_PLAYED", track: playlist.tracks[0] });
   };
 
+  const handleShufflePlay = () => {
+    if (playlist.tracks.length === 0) return;
+    const shuffled = [...playlist.tracks].sort(() => Math.random() - 0.5);
+    dispatch({ type: "SET_QUEUE", queue: shuffled, index: 0 });
+    dispatch({ type: "SET_CURRENT_TRACK", track: shuffled[0] });
+    dispatch({ type: "ADD_RECENTLY_PLAYED", track: shuffled[0] });
+    dispatch({ type: "SET_PREFS", prefs: { shuffle: true } });
+    toast.success("Shuffle play started");
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-4 px-6 py-5 border-b border-border">
@@ -300,10 +311,21 @@ function PlaylistDetail({
           </p>
         </div>
         {playlist.tracks.length > 0 && (
-          <Button onClick={handlePlayAll} className="rounded-pill shrink-0">
-            <Play className="h-4 w-4 mr-2" fill="currentColor" />
-            Play All
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              onClick={handleShufflePlay}
+              className="rounded-pill"
+              data-ocid="playlists.shuffle_button"
+            >
+              <Shuffle className="h-4 w-4 mr-2" />
+              Shuffle
+            </Button>
+            <Button onClick={handlePlayAll} className="rounded-pill">
+              <Play className="h-4 w-4 mr-2" fill="currentColor" />
+              Play All
+            </Button>
+          </div>
         )}
       </div>
 

@@ -55,7 +55,11 @@ export default function SignInModal({
       if (!state.userEmail) {
         setStep("email");
       } else {
-        // Already have email — close modal immediately
+        // Already have email — re-sync admin flag and close modal immediately
+        const isAdminEmail = state.adminEmails.some(
+          (ae) => ae.toLowerCase() === state.userEmail.toLowerCase(),
+        );
+        dispatch({ type: "SET_ADMIN", isAdmin: isAdminEmail });
         onClose();
       }
     }
@@ -70,6 +74,7 @@ export default function SignInModal({
     identity,
     dispatch,
     state.userEmail,
+    state.adminEmails,
     onClose,
   ]);
 
@@ -95,6 +100,13 @@ export default function SignInModal({
     }
   }, [open]);
 
+  // Auto-close if user is already authenticated with email when modal opens
+  useEffect(() => {
+    if (open && isAuthenticated && state.userEmail) {
+      onClose();
+    }
+  }, [open, isAuthenticated, state.userEmail, onClose]);
+
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = emailInput.trim();
@@ -105,6 +117,9 @@ export default function SignInModal({
     const willBePrivileged = state.adminEmails.some(
       (ae) => ae.toLowerCase() === trimmed.toLowerCase(),
     );
+    // Explicitly set admin flag in case SET_USER_EMAIL reducer didn't catch it
+    dispatch({ type: "SET_ADMIN", isAdmin: willBePrivileged });
+
     if (willBePrivileged) {
       const adminEntry: ConsoleLogEntry = {
         id: `${Date.now()}-priv`,
@@ -171,9 +186,9 @@ export default function SignInModal({
                     <div className="absolute inset-0 rounded-full bg-primary/25 blur-xl scale-150 animate-pulse" />
                     <div className="relative z-10 w-16 h-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center overflow-hidden">
                       <img
-                        src="/assets/generated/tunesearch-logo-transparent.dim_200x200.png"
+                        src="/assets/uploads/tunesearch-logo-user.jpg"
                         alt="TuneSearch"
-                        className="w-12 h-12 object-contain"
+                        className="w-16 h-16 object-cover rounded-2xl"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = "none";
                           const icon = document.createElement("div");

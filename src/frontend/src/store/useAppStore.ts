@@ -362,7 +362,7 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 const DEFAULT_APP_CONFIG: AppCustomConfig = {
   appName: "TuneSearch",
   tagline: "Search and play music from YouTube",
-  logoUrl: "/assets/generated/tunesearch-logo-transparent.dim_200x200.png",
+  logoUrl: "/assets/uploads/tunesearch-logo-user.jpg",
   bannerUrl: "",
   creditsHtml: "Developed by DemonXEnma in Sponser with Caffeine",
   accentColor: "",

@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useAppState } from "@/store/useAppStore";
 import type { Playlist, Track } from "@/store/useAppStore";
-import { Heart, Music, Play, Plus } from "lucide-react";
+import { Heart, Music, Play, Plus, Shuffle } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -40,6 +40,16 @@ export default function FavouritesPage() {
     dispatch({ type: "SET_QUEUE", queue: state.favourites, index: 0 });
     dispatch({ type: "SET_CURRENT_TRACK", track: state.favourites[0] });
     dispatch({ type: "ADD_RECENTLY_PLAYED", track: state.favourites[0] });
+  };
+
+  const handleShufflePlay = () => {
+    if (state.favourites.length === 0) return;
+    const shuffled = [...state.favourites].sort(() => Math.random() - 0.5);
+    dispatch({ type: "SET_QUEUE", queue: shuffled, index: 0 });
+    dispatch({ type: "SET_CURRENT_TRACK", track: shuffled[0] });
+    dispatch({ type: "ADD_RECENTLY_PLAYED", track: shuffled[0] });
+    dispatch({ type: "SET_PREFS", prefs: { shuffle: true } });
+    toast.success("Shuffle play started");
   };
 
   const handleAddToPlaylist = (playlistId: string, track: Track) => {
@@ -85,10 +95,21 @@ export default function FavouritesPage() {
           </p>
         </div>
         {state.favourites.length > 0 && (
-          <Button onClick={handlePlayAll} className="rounded-pill">
-            <Play className="h-4 w-4 mr-2" fill="currentColor" />
-            Play All
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handlePlayAll} className="rounded-pill">
+              <Play className="h-4 w-4 mr-2" fill="currentColor" />
+              Play All
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleShufflePlay}
+              className="rounded-pill"
+              data-ocid="favourites.shuffle_button"
+            >
+              <Shuffle className="h-4 w-4 mr-2" />
+              Shuffle
+            </Button>
+          </div>
         )}
       </div>
 

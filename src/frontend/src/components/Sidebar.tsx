@@ -61,6 +61,14 @@ const navItems: NavItem[] = [
 export default function Sidebar() {
   const { state, dispatch } = useAppState();
 
+  // Derived admin check — re-compute from email in case isAdmin flag is stale
+  const isEffectivelyAdmin =
+    state.isAdmin ||
+    (!!state.userEmail &&
+      state.adminEmails.some(
+        (ae) => ae.toLowerCase() === state.userEmail.toLowerCase(),
+      ));
+
   const navigate = (page: Page) => {
     dispatch({ type: "SET_ACTIVE_PAGE", page });
   };
@@ -69,16 +77,18 @@ export default function Sidebar() {
     <aside className="hidden md:flex flex-col w-52 lg:w-60 h-full bg-sidebar border-r border-sidebar-border shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
-        <div className="relative">
-          <img
-            src={
-              state.appCustomConfig?.logoUrl ||
-              "/assets/generated/tunesearch-logo-transparent.dim_200x200.png"
-            }
-            alt={state.appCustomConfig?.appName || "TuneSearch"}
-            className="w-9 h-9 object-contain relative z-10"
-          />
-          <div className="absolute inset-0 blur-md bg-primary/30 rounded-full scale-110" />
+        <div className="relative shrink-0">
+          <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/40 shadow-[0_0_12px_rgba(var(--primary-raw,139,92,246),0.4)] relative z-10 bg-muted">
+            <img
+              src={
+                state.appCustomConfig?.logoUrl ||
+                "/assets/uploads/tunesearch-logo-user.jpg"
+              }
+              alt={state.appCustomConfig?.appName || "TuneSearch"}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="absolute inset-0 blur-md bg-primary/30 rounded-full scale-125 z-0" />
         </div>
         <span className="font-outfit text-lg font-bold text-gradient">
           {state.appCustomConfig?.appName || "TuneSearch"}
@@ -169,7 +179,7 @@ export default function Sidebar() {
       {/* Settings + Dashboard (admin only) — no auth button here */}
       <div className="p-2.5 border-t border-sidebar-border space-y-0.5">
         {/* Dashboard - admin only */}
-        {state.isAdmin && (
+        {isEffectivelyAdmin && (
           <button
             type="button"
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
@@ -210,12 +220,20 @@ export function MobileTabBar({
   const isAuthenticated =
     !!principal && !identity?.getPrincipal().isAnonymous();
 
+  // Derived admin check for mobile bar
+  const isMobileAdmin =
+    state.isAdmin ||
+    (!!state.userEmail &&
+      state.adminEmails.some(
+        (ae) => ae.toLowerCase() === state.userEmail.toLowerCase(),
+      ));
+
   const mobileItems = navItems.slice(0, 4);
 
   // Build tab items, cap at 5 total to prevent overflow on small phones
   const allTabs = [
     ...mobileItems,
-    ...(state.isAdmin
+    ...(isMobileAdmin
       ? [
           {
             page: "dashboard" as Page,

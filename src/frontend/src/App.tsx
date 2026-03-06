@@ -140,16 +140,16 @@ function InnerLayout({
 
         return (
           <div className="flex h-screen overflow-hidden bg-background text-foreground relative">
-            {/* Animated background orbs */}
+            {/* Animated background orbs — warm amber/terracotta */}
             <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-              <div className="animate-orb-1 absolute w-[600px] h-[600px] rounded-full opacity-[0.07] blur-[80px] bg-primary top-[-200px] left-[-200px]" />
-              <div className="animate-orb-2 absolute w-[500px] h-[500px] rounded-full opacity-[0.06] blur-[100px] bg-secondary bottom-[-150px] right-[-150px]" />
+              <div className="animate-orb-1 absolute w-[500px] h-[500px] rounded-full opacity-[0.06] blur-[90px] bg-primary top-[-180px] left-[-180px]" />
+              <div className="animate-orb-2 absolute w-[420px] h-[420px] rounded-full opacity-[0.05] blur-[110px] bg-secondary bottom-[-130px] right-[-130px]" />
               <div
-                className="animate-orb-3 absolute w-[400px] h-[400px] rounded-full opacity-[0.05] blur-[120px]"
+                className="animate-orb-3 absolute w-[340px] h-[340px] rounded-full opacity-[0.04] blur-[130px]"
                 style={{
-                  backgroundColor: "oklch(0.72 0.18 280)",
-                  top: "30%",
-                  left: "40%",
+                  backgroundColor: "oklch(0.70 0.14 70)",
+                  top: "35%",
+                  left: "42%",
                 }}
               />
             </div>

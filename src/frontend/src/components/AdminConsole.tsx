@@ -264,8 +264,7 @@ export default function AdminConsole() {
         const defaults = {
           appName: "TuneSearch",
           tagline: "Search and play music from YouTube",
-          logoUrl:
-            "/assets/generated/tunesearch-logo-transparent.dim_200x200.png",
+          logoUrl: "/assets/uploads/tunesearch-logo-user.jpg",
           bannerUrl: "",
           creditsHtml: "Developed by DemonXEnma in Sponser with Caffeine",
         };

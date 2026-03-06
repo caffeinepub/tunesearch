@@ -1,5 +1,5 @@
 import { useAppState } from "@/store/useAppStore";
-import { Crown, Settings } from "lucide-react";
+import { Crown, LayoutDashboard, Settings } from "lucide-react";
 
 const PAGE_LABELS: Record<string, string> = {
   search: "Search",
@@ -15,17 +15,43 @@ export default function TopHeader() {
   const { state, dispatch } = useAppState();
   const pageTitle = PAGE_LABELS[state.activePage] ?? state.activePage;
 
+  // Derived admin check — re-compute from email in case isAdmin flag is stale
+  const isEffectivelyAdmin =
+    state.isAdmin ||
+    (!!state.userEmail &&
+      state.adminEmails.some(
+        (ae) => ae.toLowerCase() === state.userEmail.toLowerCase(),
+      ));
+
   return (
     <header className="hidden md:flex h-14 shrink-0 items-center justify-between px-6 border-b border-border/50 bg-background/80 backdrop-blur-md z-30">
-      {/* Left: Page title */}
-      <div className="flex items-center gap-2">
+      {/* Left: Admin dashboard button (admins only) + Page title */}
+      <div className="flex items-center gap-3">
+        {isEffectivelyAdmin && (
+          <button
+            type="button"
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 border ${
+              state.activePage === "dashboard"
+                ? "bg-primary/15 text-primary border-primary/30"
+                : "text-amber-400/90 border-amber-400/30 bg-amber-400/8 hover:bg-amber-400/15 hover:text-amber-400 hover:border-amber-400/50"
+            }`}
+            onClick={() =>
+              dispatch({ type: "SET_ACTIVE_PAGE", page: "dashboard" })
+            }
+            data-ocid="header.dashboard_button"
+            title="Admin Dashboard"
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Dashboard
+          </button>
+        )}
         <h2 className="text-base font-semibold font-outfit text-foreground">
           {pageTitle}
         </h2>
         {state.activePage === "dashboard" && (
           <span className="flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
             <Crown className="h-3 w-3" />
-            Dashboard
+            Admin
           </span>
         )}
       </div>
