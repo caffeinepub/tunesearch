@@ -29,8 +29,6 @@ import {
   Shield,
   Sliders,
   Terminal,
-  Trash2,
-  UserPlus,
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -590,33 +588,17 @@ function HomepageTab() {
 
 // --- Users Tab ---
 function UsersTab({ principal }: { principal?: string }) {
-  const { state, dispatch } = useAppState();
-  const [grantEmail, setGrantEmail] = useState("");
-
-  const handleGrant = (e: React.FormEvent) => {
-    e.preventDefault();
-    const email = grantEmail.trim();
-    if (!email) return;
-    if (state.adminEmails.includes(email)) {
-      toast.info(`${email} is already an admin`);
-      return;
-    }
-    dispatch({ type: "GRANT_ADMIN", email });
-    toast.success(`Admin granted to ${email}`);
-    setGrantEmail("");
-  };
-
   return (
     <div className="p-6 max-w-2xl space-y-8">
       <SectionHeader
-        title="Users & Admins"
-        description="Manage admin access and view current user info"
+        title="Access & Admin"
+        description="Admin access is granted via promo-code in Settings"
       />
 
-      {/* Current user */}
+      {/* Current session */}
       <div className="p-4 rounded-lg bg-muted/20 border border-border space-y-2">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Shield className="h-4 w-4 text-primary" /> Your Account
+          <Shield className="h-4 w-4 text-primary" /> Current Session
         </h3>
         <div className="space-y-1 text-xs">
           <p className="text-muted-foreground">
@@ -624,94 +606,29 @@ function UsersTab({ principal }: { principal?: string }) {
             <span className="font-mono">{principal ?? "Not connected"}</span>
           </p>
           <p className="text-muted-foreground">
-            <span className="text-foreground font-medium">Email:</span>{" "}
-            {state.userEmail || <span className="italic">not set</span>}
-          </p>
-          <p className="text-muted-foreground">
             <span className="text-foreground font-medium">Status:</span>{" "}
-            <span className="text-primary font-semibold">Admin</span>
+            <span className="text-primary font-semibold">
+              Admin (promo-code)
+            </span>
           </p>
         </div>
       </div>
 
-      {/* Admin list */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Admin Emails</h3>
-        <div className="space-y-2">
-          {state.adminEmails.map((email, idx) => {
-            const isSuperAdmin = email === "Prajwol9847@gmail.com";
-            return (
-              <div
-                key={email}
-                className="flex items-center gap-3 p-3 rounded-lg bg-card border border-border"
-                data-ocid={`dashboard.admin.item.${idx + 1}`}
-              >
-                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  {isSuperAdmin ? (
-                    <Lock className="h-3.5 w-3.5 text-primary" />
-                  ) : (
-                    <Shield className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                </div>
-                <p className="flex-1 text-sm text-foreground truncate font-mono text-xs">
-                  {email}
-                </p>
-                {isSuperAdmin ? (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] shrink-0 border-primary/30 text-primary"
-                  >
-                    Super Admin
-                  </Badge>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-muted-foreground hover:text-destructive shrink-0"
-                    onClick={() => {
-                      dispatch({ type: "REVOKE_ADMIN", email });
-                      toast.success(`Admin revoked from ${email}`);
-                    }}
-                    data-ocid={`dashboard.admin.delete_button.${idx + 1}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Grant admin form */}
-      <form onSubmit={handleGrant} className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <UserPlus className="h-4 w-4 text-primary" />
-          Grant Admin Access
+      {/* Info box */}
+      <div className="p-4 rounded-lg bg-amber-400/8 border border-amber-400/20 space-y-2">
+        <h3 className="text-sm font-semibold text-amber-400 flex items-center gap-2">
+          <Lock className="h-4 w-4" /> How admin access works
         </h3>
-        <div className="flex gap-2">
-          <Input
-            type="email"
-            placeholder="user@email.com"
-            value={grantEmail}
-            onChange={(e) => setGrantEmail(e.target.value)}
-            className="flex-1"
-            data-ocid="dashboard.grant_admin_input"
-          />
-          <Button
-            type="submit"
-            disabled={!grantEmail.trim()}
-            className="gap-2"
-            data-ocid="dashboard.grant_admin_button"
-          >
-            <UserPlus className="h-4 w-4" />
-            Grant
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          The user must sign in and enter this email to gain admin access.
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Admin access is granted by entering the secret promo-code in{" "}
+          <strong className="text-foreground">
+            Settings → Enter Promo-code
+          </strong>
+          . Share the promo-code only with trusted people. The access flag is
+          stored locally in the browser and persists until the user clears their
+          browser data or signs out.
         </p>
-      </form>
+      </div>
     </div>
   );
 }

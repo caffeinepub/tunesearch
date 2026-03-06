@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -18,13 +19,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAppState } from "@/store/useAppStore";
+import { PROMO_CODE, useAppState } from "@/store/useAppStore";
 import {
+  CheckCircle2,
   Download,
   ExternalLink,
   Info,
   Keyboard,
   Loader2,
+  Lock,
   Moon,
   Sliders,
   Sun,
@@ -69,6 +72,8 @@ export default function SettingsDrawer() {
   const { state, dispatch } = useAppState();
   const [canInstall, setCanInstall] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoSubmitted, setPromoSubmitted] = useState(false);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -99,6 +104,27 @@ export default function SettingsDrawer() {
   };
 
   const isDark = state.prefs.theme === "dark";
+
+  const handlePromoSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = promoInput.trim();
+    if (!code) return;
+    if (code === PROMO_CODE) {
+      dispatch({ type: "SET_ADMIN", isAdmin: true });
+      setPromoSubmitted(true);
+      setPromoInput("");
+      toast.success("Access granted.");
+    } else if (code.toLowerCase() === "revoke" && state.isAdmin) {
+      // Allow admin to revoke their own access by typing "revoke"
+      dispatch({ type: "SET_ADMIN", isAdmin: false });
+      setPromoSubmitted(false);
+      setPromoInput("");
+      toast.info("Access revoked.");
+    } else {
+      toast.error("Invalid code. Please try again.");
+      setPromoInput("");
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -162,6 +188,44 @@ export default function SettingsDrawer() {
                     </div>
                   </div>
                 </Section>
+
+                {/* Promo Code */}
+                <Section
+                  icon={<Lock className="h-4 w-4" />}
+                  title="Enter Promo-code"
+                >
+                  {state.isAdmin || promoSubmitted ? (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/30">
+                      <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-sm text-primary font-medium">
+                        Special access active
+                      </span>
+                    </div>
+                  ) : (
+                    <form onSubmit={handlePromoSubmit} className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="Enter promo-code"
+                        value={promoInput}
+                        onChange={(e) => setPromoInput(e.target.value)}
+                        className="h-10 text-sm rounded-lg bg-background border-border flex-1"
+                        data-ocid="settings.promo_input"
+                        autoComplete="off"
+                      />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-10 px-4 rounded-lg"
+                        disabled={!promoInput.trim()}
+                        data-ocid="settings.promo_submit_button"
+                      >
+                        Apply
+                      </Button>
+                    </form>
+                  )}
+                </Section>
+
+                <Separator />
 
                 {/* Equalizer */}
                 <Section
@@ -318,7 +382,7 @@ export default function SettingsDrawer() {
                           "/assets/uploads/tunesearch-logo-user.jpg"
                         }
                         alt={state.appCustomConfig?.appName || "TuneSearch"}
-                        className="w-10 h-10 object-contain"
+                        className="w-10 h-10 object-cover rounded-xl"
                       />
                       <div>
                         <p className="font-outfit font-bold text-gradient">

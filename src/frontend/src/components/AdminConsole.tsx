@@ -62,7 +62,7 @@ export default function AdminConsole() {
         "ADMIN",
         "TuneSearch Admin Console v1.0 — Type 'help' for commands",
       );
-      addLog("INFO", `Logged in as: ${state.userEmail || principal}`);
+      addLog("INFO", `Logged in as: ${principal || "Unknown"}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -130,8 +130,7 @@ export default function AdminConsole() {
           [
             `TuneSearch v${APP_VERSION}`,
             `API key: ${state.apiKey ? `set (${state.apiKey.slice(0, 8)}…)` : "not set"}`,
-            `Admin emails: ${state.adminEmails.join(", ")}`,
-            `Current user: ${state.userEmail || principal}`,
+            `Principal: ${principal}`,
             `Is admin: ${state.isAdmin}`,
           ].join("\n"),
         );
@@ -140,48 +139,24 @@ export default function AdminConsole() {
       case "whoami":
         addLog(
           "INFO",
-          [
-            `Principal: ${principal}`,
-            `Email: ${state.userEmail || "(not set)"}`,
-            `Admin: ${state.isAdmin}`,
-          ].join("\n"),
+          [`Principal: ${principal}`, `Admin: ${state.isAdmin}`].join("\n"),
         );
         break;
 
       case "list-admins":
         addLog(
           "INFO",
-          `Admin emails:\n${state.adminEmails.map((e) => `  • ${e}`).join("\n")}`,
+          `Admin access is granted via promo-code.\nCurrent session admin: ${state.isAdmin}`,
         );
         break;
 
       case "grant-admin": {
-        const email = args[0];
-        if (!email) {
-          addLog("ERROR", "Usage: grant-admin <email>");
-          break;
-        }
-        if (state.adminEmails.includes(email)) {
-          addLog("WARN", `${email} is already an admin`);
-          break;
-        }
-        dispatch({ type: "GRANT_ADMIN", email });
-        addLog("ADMIN", `Admin granted to: ${email}`);
+        addLog("INFO", "Admin access is granted via promo-code in Settings.");
         break;
       }
 
       case "revoke-admin": {
-        const email = args[0];
-        if (!email) {
-          addLog("ERROR", "Usage: revoke-admin <email>");
-          break;
-        }
-        if (email === "Prajwol9847@gmail.com") {
-          addLog("ERROR", "Cannot revoke super admin (Prajwol9847@gmail.com)");
-          break;
-        }
-        dispatch({ type: "REVOKE_ADMIN", email });
-        addLog("ADMIN", `Admin revoked from: ${email}`);
+        addLog("INFO", "Admin access is managed via promo-code in Settings.");
         break;
       }
 

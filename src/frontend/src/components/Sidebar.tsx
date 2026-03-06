@@ -61,13 +61,7 @@ const navItems: NavItem[] = [
 export default function Sidebar() {
   const { state, dispatch } = useAppState();
 
-  // Derived admin check — re-compute from email in case isAdmin flag is stale
-  const isEffectivelyAdmin =
-    state.isAdmin ||
-    (!!state.userEmail &&
-      state.adminEmails.some(
-        (ae) => ae.toLowerCase() === state.userEmail.toLowerCase(),
-      ));
+  const isEffectivelyAdmin = state.isAdmin;
 
   const navigate = (page: Page) => {
     dispatch({ type: "SET_ACTIVE_PAGE", page });
@@ -78,7 +72,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
         <div className="relative shrink-0">
-          <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/40 shadow-[0_0_12px_rgba(var(--primary-raw,139,92,246),0.4)] relative z-10 bg-muted">
+          <div className="w-9 h-9 rounded-xl overflow-hidden border-2 border-primary/40 shadow-[0_0_12px_rgba(var(--primary-raw,139,92,246),0.4)] relative z-10 bg-muted">
             <img
               src={
                 state.appCustomConfig?.logoUrl ||
@@ -88,7 +82,7 @@ export default function Sidebar() {
               className="w-full h-full object-cover"
             />
           </div>
-          <div className="absolute inset-0 blur-md bg-primary/30 rounded-full scale-125 z-0" />
+          <div className="absolute inset-0 blur-md bg-primary/30 rounded-xl scale-125 z-0" />
         </div>
         <span className="font-outfit text-lg font-bold text-gradient">
           {state.appCustomConfig?.appName || "TuneSearch"}
@@ -220,13 +214,7 @@ export function MobileTabBar({
   const isAuthenticated =
     !!principal && !identity?.getPrincipal().isAnonymous();
 
-  // Derived admin check for mobile bar
-  const isMobileAdmin =
-    state.isAdmin ||
-    (!!state.userEmail &&
-      state.adminEmails.some(
-        (ae) => ae.toLowerCase() === state.userEmail.toLowerCase(),
-      ));
+  const isMobileAdmin = state.isAdmin;
 
   const mobileItems = navItems.slice(0, 4);
 

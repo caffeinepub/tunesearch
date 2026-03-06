@@ -15,13 +15,7 @@ export default function TopHeader() {
   const { state, dispatch } = useAppState();
   const pageTitle = PAGE_LABELS[state.activePage] ?? state.activePage;
 
-  // Derived admin check — re-compute from email in case isAdmin flag is stale
-  const isEffectivelyAdmin =
-    state.isAdmin ||
-    (!!state.userEmail &&
-      state.adminEmails.some(
-        (ae) => ae.toLowerCase() === state.userEmail.toLowerCase(),
-      ));
+  const isEffectivelyAdmin = state.isAdmin;
 
   return (
     <header className="hidden md:flex h-14 shrink-0 items-center justify-between px-6 border-b border-border/50 bg-background/80 backdrop-blur-md z-30">

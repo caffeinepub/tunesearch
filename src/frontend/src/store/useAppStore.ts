@@ -134,7 +134,7 @@ export type AppAction =
   | { type: "SET_API_KEYS"; keys: string[] }
   | { type: "SET_API_KEY_INDEX"; index: number };
 
-const SUPER_ADMIN = "Prajwol9847@gmail.com";
+export const PROMO_CODE = "Prajwolforawin";
 
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
@@ -283,19 +283,23 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, prefs: updated };
     }
     case "SET_ADMIN": {
-      // Never wipe userEmail here — only toggle the admin flag
+      // Toggle admin flag; persist it so it survives page reloads
+      try {
+        if (action.isAdmin) {
+          localStorage.setItem("ts_promo_admin", "1");
+        } else {
+          localStorage.removeItem("ts_promo_admin");
+        }
+      } catch {}
       return { ...state, isAdmin: action.isAdmin };
     }
     case "SET_USER_EMAIL": {
-      const isAdmin = state.adminEmails.some(
-        (e) => e.toLowerCase() === action.email.toLowerCase(),
-      );
       if (action.email) {
         localStorage.setItem("ts_user_email", action.email);
       } else {
         localStorage.removeItem("ts_user_email");
       }
-      return { ...state, userEmail: action.email, isAdmin };
+      return { ...state, userEmail: action.email };
     }
     case "SET_APP_CONFIG": {
       const updated = { ...state.appCustomConfig, ...action.config };
@@ -313,7 +317,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, adminEmails: updated };
     }
     case "REVOKE_ADMIN": {
-      if (action.email === SUPER_ADMIN) return state; // never revoke super admin
       const updated = state.adminEmails.filter((e) => e !== action.email);
       localStorage.setItem("ts_admin_emails", JSON.stringify(updated));
       return { ...state, adminEmails: updated };
@@ -375,7 +378,7 @@ const DEFAULT_APP_CONFIG: AppCustomConfig = {
   maxPopular: 6,
 };
 
-const DEFAULT_ADMIN_EMAILS = [SUPER_ADMIN];
+const DEFAULT_ADMIN_EMAILS: string[] = [];
 
 const API_KEY_POOL = [
   "AIzaSyDo7AkNZUqlAz11qjn5wJf3DgLh6p8v7K0",
@@ -397,16 +400,14 @@ export function getInitialState(): AppState {
     "ts_admin_emails",
     DEFAULT_ADMIN_EMAILS,
   );
-  const adminEmails = loadedEmails.some(
-    (e) => e.toLowerCase() === SUPER_ADMIN.toLowerCase(),
-  )
-    ? loadedEmails
-    : [SUPER_ADMIN, ...loadedEmails];
+  const adminEmails =
+    loadedEmails.length > 0 ? loadedEmails : DEFAULT_ADMIN_EMAILS;
 
   const userEmail = loadFromStorage<string>("ts_user_email", "");
-  const isAdmin = userEmail
-    ? adminEmails.some((e) => e.toLowerCase() === userEmail.toLowerCase())
-    : false;
+  // Admin is granted via promo-code only — persisted as a flag in localStorage
+  const isAdmin =
+    typeof window !== "undefined" &&
+    localStorage.getItem("ts_promo_admin") === "1";
 
   // Always start from index 0 with the first key in the pool
   const apiKey = API_KEY_POOL[0];
